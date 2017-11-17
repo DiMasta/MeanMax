@@ -10,11 +10,16 @@
 #include <ctime>
 #include <deque>
 #include <math.h>
+#include <fstream>
+#include <climits>
 
 using namespace std;
 
-const bool OUTPUT_GAME_DATA = 1;
-const bool USE_HARDCODED_INPUT = 1;
+const bool OUTPUT_GAME_DATA = 0;
+const bool USE_HARDCODED_INPUT = 0;
+
+//#define REDIRECT_CIN_FROM_FILE
+const string INPUT_FILE_NAME = "input.txt";
 
 const int INVALID_ID = -1;
 const int INVALID_NODE_DEPTH = -1;
@@ -23,6 +28,9 @@ const int ZERO_CHAR = '0';
 const int DIRECTIONS_COUNT = 8;
 
 const int INVALID_WATER_QUANTITY = -1;
+const int MAX_THROTTLE = 300;
+const string WAIT = "WAIT";
+
 
 enum PlayerId {
 	PI_INVALID = -1,
@@ -34,7 +42,7 @@ enum PlayerId {
 enum UnitType {
 	UT_INVALID = -1,
 	UT_REAPER = 0,
-	UT_WRECK,
+	UT_WRECK = 4,
 };
 
 //-------------------------------------------------------------------------------------------------------------
@@ -68,6 +76,10 @@ public:
 
 	bool isValid() const;
 	void debug() const;
+	void print() const;
+
+	int distance(const Coords& coords) const;
+
 private:
 	Coord xCoord;
 	Coord yCoord;
@@ -142,6 +154,24 @@ bool Coords::isValid() const {
 
 void Coords::debug() const {
 	cerr << "Position: X=" << xCoord << ", Y=" << yCoord << endl;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Coords::print() const {
+	cout << xCoord << " " << yCoord;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+int Coords::distance(const Coords& coords) const {
+	int kat0 = coords.xCoord - xCoord;
+	int kat1 = coords.yCoord - yCoord;
+
+	int hip = (int)sqrt((kat0 * kat0) + (kat1 * kat1));
+	return hip;
 }
 
 //*************************************************************************************************************
@@ -377,6 +407,8 @@ public:
 
 	void debug() const;
 
+	Coords findNearestWreck() const;
+
 private:
 	int turnsCount;
 
@@ -463,7 +495,6 @@ void Game::getTurnInput() {
 	int myScore, enemyScore1, enemyScore2, myRage, enemyRage1, enemyRage2, unitCount;
 	cin >> myScore >> enemyScore1 >> enemyScore2 >> myRage >> enemyRage1>> enemyRage2 >> unitCount; cin.ignore();
 
-	cerr << "-------------------------------------------------------------------" << endl;
 	if (OUTPUT_GAME_DATA) {
 		cerr << myScore << endl;
 		cerr << enemyScore1 << endl;
@@ -520,7 +551,6 @@ void Game::getTurnInput() {
 			wrecks->push_back(wreck);
 		}
 	}
-	cerr << "-------------------------------------------------------------------" << endl;
 }
 
 //*************************************************************************************************************
@@ -533,9 +563,12 @@ void Game::turnBegin() {
 //*************************************************************************************************************
 
 void Game::makeTurn() {
-	cout << "WAIT" << endl;
-	cout << "WAIT" << endl;
-	cout << "WAIT" << endl;
+	Coords nearestWreck = findNearestWreck();
+	nearestWreck.print();
+
+	cout << " " << MAX_THROTTLE / 2 << endl;
+	cout << WAIT << endl;
+	cout << WAIT << endl;
 }
 
 //*************************************************************************************************************
@@ -561,6 +594,26 @@ void Game::play() {
 void Game::debug() const {
 }
 
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Coords Game::findNearestWreck() const {
+	Coords res;
+	int minDist = INT_MAX;
+
+	for (Wrecks::const_iterator it = wrecks->begin(); it != wrecks->end(); ++it) {
+		const Coords wreckPostion = it->getPosition();
+		const int distToMyReaper = wreckPostion.distance(myReaper->getPosition());
+
+		if (distToMyReaper < minDist) {
+			res = wreckPostion;
+			minDist = distToMyReaper;
+		}
+	}
+
+	return res;
+}
+
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
@@ -574,6 +627,13 @@ int main(int argc, char** argv) {
 	doctest::Context context;
 	int res = context.run();
 #else
+
+#ifdef REDIRECT_CIN_FROM_FILE
+	ifstream in(INPUT_FILE_NAME);
+	streambuf *cinbuf = cin.rdbuf();
+	cin.rdbuf(in.rdbuf());
+#endif
+
 	Game game;
 	game.play();
 #endif // TESTS
