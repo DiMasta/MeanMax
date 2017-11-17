@@ -15,7 +15,7 @@
 
 using namespace std;
 
-const bool OUTPUT_GAME_DATA = 0;
+const bool OUTPUT_GAME_DATA = 1;
 const bool USE_HARDCODED_INPUT = 0;
 
 //#define REDIRECT_CIN_FROM_FILE
@@ -353,6 +353,8 @@ public:
 
 	void setWaterQuantity(int waterQuantity) { this->waterQuantity = waterQuantity; }
 
+	bool empthy() const;
+
 private:
 	int waterQuantity;
 };
@@ -383,6 +385,13 @@ Wreck::Wreck(int id, Coords position, int radius, int waterQuantity) :
 
 Wreck::~Wreck() {
 
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+bool Wreck::empthy() const {
+	return 0 == waterQuantity;
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -496,13 +505,13 @@ void Game::getTurnInput() {
 	cin >> myScore >> enemyScore1 >> enemyScore2 >> myRage >> enemyRage1>> enemyRage2 >> unitCount; cin.ignore();
 
 	if (OUTPUT_GAME_DATA) {
-		cerr << myScore << endl;
-		cerr << enemyScore1 << endl;
-		cerr << enemyScore2 << endl;
-		cerr << myRage << endl;
-		cerr << enemyRage1 << endl;
-		cerr << enemyRage2 << endl;
-		cerr << unitCount << endl;
+		cerr << myScore << " ";
+		cerr << enemyScore1 << " ";
+		cerr << enemyScore2 << " ";
+		cerr << myRage << " ";
+		cerr << enemyRage1 << " ";
+		cerr << enemyRage2 << " ";
+		cerr << unitCount << " ";
 	}
 
 	for (int i = 0; i < unitCount; i++) {
@@ -511,16 +520,16 @@ void Game::getTurnInput() {
 		cin >> unitId >> unitType >> player >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2; cin.ignore();
 
 		if (OUTPUT_GAME_DATA) {
-			cerr << unitId << endl;
-			cerr << unitType << endl;
-			cerr << player << endl;
-			cerr << mass << endl;
-			cerr << radius << endl;
-			cerr << x << endl;
-			cerr << y << endl;
-			cerr << vx << endl;
-			cerr << vy << endl;
-			cerr << extra << endl;
+			cerr << unitId << " ";
+			cerr << unitType << " ";
+			cerr << player << " ";
+			cerr << mass << " ";
+			cerr << radius << " ";
+			cerr << x << " ";
+			cerr << y << " ";
+			cerr << vx << " ";
+			cerr << vy << " ";
+			cerr << extra << " ";
 			cerr << extra2 << endl;
 		}
 
@@ -576,6 +585,8 @@ void Game::makeTurn() {
 
 void Game::turnEnd() {
 	++turnsCount;
+
+	wrecks->clear();
 }
 
 //*************************************************************************************************************
@@ -602,6 +613,10 @@ Coords Game::findNearestWreck() const {
 	int minDist = INT_MAX;
 
 	for (Wrecks::const_iterator it = wrecks->begin(); it != wrecks->end(); ++it) {
+		if (it->empthy()) {
+			continue;
+		}
+
 		const Coords wreckPostion = it->getPosition();
 		const int distToMyReaper = wreckPostion.distance(myReaper->getPosition());
 
