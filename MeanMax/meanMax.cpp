@@ -24,13 +24,26 @@ const int DIRECTIONS_COUNT = 8;
 
 const int INVALID_WATER_QUANTITY = -1;
 
+enum PlayerId {
+	PI_INVALID = -1,
+	PI_MY_PALYER = 0,
+	PI_ENEMY_PLAYER_1,
+	PI_ENEMY_PLAYER_2,
+};
+
+enum UnitType {
+	UT_INVALID = -1,
+	UT_REAPER = 0,
+	UT_WRECK,
+};
+
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-typedef float Coord;
-const Coord INVALID_COORD = -1.f;
+typedef int Coord;
+const Coord INVALID_COORD = -1;
 
 class Coords {
 public:
@@ -168,22 +181,29 @@ Coords DIRECTIONS[DIRECTIONS_COUNT] = {
 class Entity {
 public:
 	Entity();
+	Entity(int id, Coords position, int radius);
 	virtual ~Entity();
-
-	Coords getPosition() const {
-		return position;
-	}
 
 	int getId() const {
 		return id;
 	}
 
-	void setPosition(Coords position) { this->position = position; }
+	Coords getPosition() const {
+		return position;
+	}
+
+	int getRadius() const {
+		return radius;
+	}
+
 	void setId(int id) { this->id = id; }
+	void setPosition(Coords position) { this->position = position; }
+	void setRadius(int radius) { this->radius = radius; }
 
 private:
-	Coords position;
 	int id;
+	Coords position;
+	int radius;
 };
 
 //*************************************************************************************************************
@@ -194,6 +214,16 @@ Entity::Entity() :
 	id(INVALID_ID)
 {
 
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Entity::Entity(int id, Coords position, int radius) :
+	id(id),
+	position(position),
+	radius(radius)
+{
 }
 
 //*************************************************************************************************************
@@ -211,16 +241,36 @@ Entity::~Entity() {
 class Reaper : public Entity {
 public:
 	Reaper();
+	Reaper(
+		int id,
+		Coords position,
+		int radius,
+		int playerId,
+		Coords velocity,
+		float mass
+	);
 	~Reaper();
+
+	int getPlayerId() const {
+		return playerId;
+	}
 
 	Coords getVelocity() const {
 		return velocity;
 	}
 
+	float getMass() const {
+		return mass;
+	}
+
 	void setvelocity(Coords velocity) { this->velocity = velocity; }
+	void setMass(float mass) { this->mass = mass; }
+	void setPlayerId(int playerId) { this->playerId = playerId; }
 
 private:
+	int playerId;
 	Coords velocity;
+	float mass;
 };
 
 //*************************************************************************************************************
@@ -230,6 +280,24 @@ Reaper::Reaper() :
 	Entity()
 {
 
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Reaper::Reaper(
+	int id,
+	Coords position,
+	int radius,
+	int playerId,
+	Coords velocity,
+	float mass
+) :
+	Entity(id, position, radius),
+	playerId(playerId),
+	velocity(velocity),
+	mass(mass)
+{
 }
 
 //*************************************************************************************************************
@@ -246,6 +314,7 @@ Reaper::~Reaper() {
 class Wreck : public Entity {
 public:
 	Wreck();
+	Wreck(int id, Coords position, int radius, int waterQuantity);
 	~Wreck();
 
 	int getWaterQuantity() const {
@@ -265,6 +334,16 @@ typedef vector<Wreck> Wrecks;
 
 Wreck::Wreck() :
 	waterQuantity(INVALID_WATER_QUANTITY)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Wreck::Wreck(int id, Coords position, int radius, int waterQuantity) :
+	Entity(id, position, radius),
+	waterQuantity(waterQuantity)
 {
 
 }
@@ -325,12 +404,32 @@ Game::Game() :
 //*************************************************************************************************************
 
 Game::~Game() {
+	if (myReaper) {
+		delete myReaper;
+		myReaper = nullptr;
+	}
+
+	if (enemyReaper1) {
+		delete enemyReaper1;
+		enemyReaper1 = nullptr;
+	}
+
+	if (enemyReaper2) {
+		delete enemyReaper2;
+		enemyReaper2 = nullptr;
+	}
+
+	if (wrecks) {
+		delete wrecks;
+		wrecks = nullptr;
+	}
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
 void Game::initGame() {
+	wrecks = new Wrecks;
 }
 
 //*************************************************************************************************************
@@ -361,41 +460,67 @@ void Game::getGameInput() {
 //*************************************************************************************************************
 
 void Game::getTurnInput() {
-	int myScore;
-	cin >> myScore; cin.ignore();
+	int myScore, enemyScore1, enemyScore2, myRage, enemyRage1, enemyRage2, unitCount;
+	cin >> myScore >> enemyScore1 >> enemyScore2 >> myRage >> enemyRage1>> enemyRage2 >> unitCount; cin.ignore();
 
-	int enemyScore1;
-	cin >> enemyScore1; cin.ignore();
-
-	int enemyScore2;
-	cin >> enemyScore2; cin.ignore();
-
-	int myRage;
-	cin >> myRage; cin.ignore();
-
-	int enemyRage1;
-	cin >> enemyRage1; cin.ignore();
-
-	int enemyRage2;
-	cin >> enemyRage2; cin.ignore();
-
-	int unitCount;
-	cin >> unitCount; cin.ignore();
+	cerr << "-------------------------------------------------------------------" << endl;
+	if (OUTPUT_GAME_DATA) {
+		cerr << myScore << endl;
+		cerr << enemyScore1 << endl;
+		cerr << enemyScore2 << endl;
+		cerr << myRage << endl;
+		cerr << enemyRage1 << endl;
+		cerr << enemyRage2 << endl;
+		cerr << unitCount << endl;
+	}
 
 	for (int i = 0; i < unitCount; i++) {
-		int unitId;
-		int unitType;
-		int player;
+		int unitId, unitType, player, radius, x, y, vx, vy, extra, extra2;
 		float mass;
-		int radius;
-		int x;
-		int y;
-		int vx;
-		int vy;
-		int extra;
-		int extra2;
 		cin >> unitId >> unitType >> player >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2; cin.ignore();
+
+		if (OUTPUT_GAME_DATA) {
+			cerr << unitId << endl;
+			cerr << unitType << endl;
+			cerr << player << endl;
+			cerr << mass << endl;
+			cerr << radius << endl;
+			cerr << x << endl;
+			cerr << y << endl;
+			cerr << vx << endl;
+			cerr << vy << endl;
+			cerr << extra << endl;
+			cerr << extra2 << endl;
+		}
+
+		Coords position(x, y);
+		Coords velocity(vx, vy);
+
+		if (UT_REAPER == unitType) {
+			switch (player) {
+				case (PI_MY_PALYER): {
+					myReaper = new Reaper(unitId, position, radius, player, velocity, mass);
+					break;
+				}
+				case (PI_ENEMY_PLAYER_1): {
+					enemyReaper1 = new Reaper(unitId, position, radius, player, velocity, mass);
+					break;
+				}
+				case (PI_ENEMY_PLAYER_2): {
+					enemyReaper2 = new Reaper(unitId, position, radius, player, velocity, mass);
+					break;
+				}
+				default: {
+					break;
+				}
+			}
+		}
+		else if (UT_WRECK == unitType) {
+			Wreck wreck(unitId, position, radius, extra);
+			wrecks->push_back(wreck);
+		}
 	}
+	cerr << "-------------------------------------------------------------------" << endl;
 }
 
 //*************************************************************************************************************
@@ -456,45 +581,4 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-//int main()
-//{
-//
-//	// game loop
-//	while (1) {
-//		int myScore;
-//		cin >> myScore; cin.ignore();
-//		int enemyScore1;
-//		cin >> enemyScore1; cin.ignore();
-//		int enemyScore2;
-//		cin >> enemyScore2; cin.ignore();
-//		int myRage;
-//		cin >> myRage; cin.ignore();
-//		int enemyRage1;
-//		cin >> enemyRage1; cin.ignore();
-//		int enemyRage2;
-//		cin >> enemyRage2; cin.ignore();
-//		int unitCount;
-//		cin >> unitCount; cin.ignore();
-//		for (int i = 0; i < unitCount; i++) {
-//			int unitId;
-//			int unitType;
-//			int player;
-//			float mass;
-//			int radius;
-//			int x;
-//			int y;
-//			int vx;
-//			int vy;
-//			int extra;
-//			int extra2;
-//			cin >> unitId >> unitType >> player >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2; cin.ignore();
-//		}
-//
-//		// Write an action using cout. DON'T FORGET THE "<< endl"
-//		// To debug: cerr << "Debug messages..." << endl;
-//
-//		cout << "WAIT" << endl;
-//		cout << "WAIT" << endl;
-//		cout << "WAIT" << endl;
-//	}
-//}
+// seed=208265368
