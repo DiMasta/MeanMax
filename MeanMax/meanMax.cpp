@@ -435,14 +435,11 @@ Reaper::~Reaper() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class WaterContainer : public Entity{
+class WaterContainer {
 public:
 	WaterContainer();
 
 	WaterContainer(
-		int id,
-		const Coords& position,
-		int radius,
 		int waterQuantity
 	);
 
@@ -463,20 +460,13 @@ private:
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-WaterContainer::WaterContainer() : Entity() {
+WaterContainer::WaterContainer() {
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-WaterContainer::WaterContainer(
-	int id,
-	const Coords& position,
-	int radius,
-	int waterQuantity
-) :
-	Entity(id, position, radius),
-	waterQuantity(waterQuantity)
+WaterContainer::WaterContainer(int waterQuantity) : waterQuantity(waterQuantity)
 {
 
 }
@@ -553,7 +543,7 @@ Tanker::Tanker(
 	int waterCapacity
 ) :
 	Vehicle(id, position, radius, playerId, velocity, mass),
-	WaterContainer(id, position, radius, waterQuantity),
+	WaterContainer(waterQuantity),
 	waterCapacity(waterCapacity)
 {
 
@@ -570,14 +560,13 @@ Tanker::~Tanker() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class Wreck : public WaterContainer {
+class Wreck : public Entity, public WaterContainer {
 public:
 	Wreck();
 	Wreck(int id, const Coords& position, int radius, int waterQuantity);
 	~Wreck();
 
 private:
-	int waterQuantity;
 };
 
 typedef vector<Wreck> Wrecks;
@@ -586,6 +575,7 @@ typedef vector<Wreck> Wrecks;
 //*************************************************************************************************************
 
 Wreck::Wreck() :
+	Entity(),
 	WaterContainer()
 {
 
@@ -595,7 +585,8 @@ Wreck::Wreck() :
 //*************************************************************************************************************
 
 Wreck::Wreck(int id, const Coords& position, int radius, int waterQuantity) :
-	WaterContainer(id, position, radius, waterQuantity)
+	Entity(id, position, radius),
+	WaterContainer(waterQuantity)
 {
 
 }
@@ -758,6 +749,8 @@ public:
 	void debug() const;
 
 	Coords findNearestWreck() const;
+	Coords findNearestTanker() const;
+
 	void updateVehicle(
 		int playerId,
 		int unitType,
@@ -915,10 +908,14 @@ void Game::turnBegin() {
 
 void Game::makeTurn() {
 	Coords nearestWreck = findNearestWreck();
-	nearestWreck.print();
+	Coords nearestTanker = findNearestTanker();
 
+	nearestWreck.print();
 	cout << " " << MAX_THROTTLE / 2 << endl;
-	cout << WAIT << endl;
+
+	nearestTanker.print();
+	cout << " " << MAX_THROTTLE << endl;
+
 	cout << WAIT << endl;
 }
 
@@ -965,6 +962,30 @@ Coords Game::findNearestWreck() const {
 		if (distToMyReaper < minDist) {
 			res = wreckPostion;
 			minDist = distToMyReaper;
+		}
+	}
+
+	return res;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Coords Game::findNearestTanker() const {
+	Coords res;
+	int minDist = INT_MAX;
+
+	for (Tankers::const_iterator it = tankers->begin(); it != tankers->end(); ++it) {
+		if (it->empthy()) {
+			continue;
+		}
+
+		const Coords tankerPostion = it->getPosition();
+		const int distToMyDestroyer = tankerPostion.distance(myTeam->getDestroyer()->getPosition());
+
+		if (distToMyDestroyer < minDist) {
+			res = tankerPostion;
+			minDist = distToMyDestroyer;
 		}
 	}
 
