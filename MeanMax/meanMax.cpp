@@ -15,7 +15,7 @@
 
 using namespace std;
 
-const bool OUTPUT_GAME_DATA = 1;
+const bool OUTPUT_GAME_DATA = 0;
 const bool USE_HARDCODED_INPUT = 0;
 
 //#define REDIRECT_CIN_FROM_FILE
@@ -27,6 +27,7 @@ const int TREE_ROOT_NODE_DEPTH = 1;
 const int ZERO_CHAR = '0';
 const int DIRECTIONS_COUNT = 8;
 
+const float INVALID_MASS = -1.f;
 const int INVALID_WATER_QUANTITY = -1;
 const int MAX_THROTTLE = 300;
 const string WAIT = "WAIT";
@@ -211,7 +212,7 @@ Coords DIRECTIONS[DIRECTIONS_COUNT] = {
 class Entity {
 public:
 	Entity();
-	Entity(int id, Coords position, int radius);
+	Entity(int id, const Coords& position, int radius);
 	virtual ~Entity();
 
 	int getId() const {
@@ -227,7 +228,7 @@ public:
 	}
 
 	void setId(int id) { this->id = id; }
-	void setPosition(Coords position) { this->position = position; }
+	void setPosition(const Coords& position) { this->position = position; }
 	void setRadius(int radius) { this->radius = radius; }
 
 private:
@@ -249,7 +250,7 @@ Entity::Entity() :
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Entity::Entity(int id, Coords position, int radius) :
+Entity::Entity(int id, const Coords& position, int radius) :
 	id(id),
 	position(position),
 	radius(radius)
@@ -268,18 +269,20 @@ Entity::~Entity() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class Reaper : public Entity {
+class Vehicle : public Entity {
 public:
-	Reaper();
-	Reaper(
+	Vehicle();
+
+	Vehicle(
 		int id,
-		Coords position,
+		const Coords& position,
 		int radius,
 		int playerId,
-		Coords velocity,
+		const Coords& velocity,
 		float mass
 	);
-	~Reaper();
+
+	~Vehicle();
 
 	int getPlayerId() const {
 		return playerId;
@@ -293,9 +296,18 @@ public:
 		return mass;
 	}
 
-	void setvelocity(Coords velocity) { this->velocity = velocity; }
-	void setMass(float mass) { this->mass = mass; }
 	void setPlayerId(int playerId) { this->playerId = playerId; }
+	void setVelocity(const Coords& velocity) { this->velocity = velocity; }
+	void setMass(float mass) { this->mass = mass; }
+
+	void update(
+		int unitId,
+		const Coords& position,
+		int radius,
+		int playerId,
+		const Coords& velocity,
+		float mass
+	);
 
 private:
 	int playerId;
@@ -306,8 +318,89 @@ private:
 //*************************************************************************************************************
 //*************************************************************************************************************
 
+Vehicle::Vehicle() :
+	Entity(),
+	playerId(INVALID_ID),
+	velocity(),
+	mass(INVALID_MASS)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Vehicle::Vehicle(
+	int id,
+	const Coords& position,
+	int radius,
+	int playerId,
+	const Coords& velocity,
+	float mass
+) :
+	Entity(id, position, radius),
+	playerId(playerId),
+	velocity(velocity),
+	mass(mass)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Vehicle::update(
+	int unitId,
+	const Coords& position,
+	int radius,
+	int playerId,
+	const Coords& velocity,
+	float mass
+) {
+	setId(unitId);
+	setPosition(position);
+	setRadius(radius);
+
+	this->playerId = playerId;
+	this->velocity = velocity;
+	this->mass = mass;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Vehicle::~Vehicle() {
+
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class Reaper : public Vehicle {
+public:
+	Reaper();
+
+	Reaper(
+		int id,
+		const Coords& position,
+		int radius,
+		int playerId,
+		const Coords& velocity,
+		float mass
+	);
+
+	~Reaper();
+
+private:
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
 Reaper::Reaper() :
-	Entity()
+	Vehicle()
 {
 
 }
@@ -317,23 +410,22 @@ Reaper::Reaper() :
 
 Reaper::Reaper(
 	int id,
-	Coords position,
+	const Coords& position,
 	int radius,
 	int playerId,
-	Coords velocity,
+	const Coords& velocity,
 	float mass
 ) :
-	Entity(id, position, radius),
-	playerId(playerId),
-	velocity(velocity),
-	mass(mass)
+	Vehicle(id, position, radius, playerId, velocity, mass)
 {
+
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
 Reaper::~Reaper() {
+
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -341,11 +433,18 @@ Reaper::~Reaper() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class Wreck : public Entity {
+class WaterContainer : public Entity{
 public:
-	Wreck();
-	Wreck(int id, Coords position, int radius, int waterQuantity);
-	~Wreck();
+	WaterContainer();
+
+	WaterContainer(
+		int id,
+		const Coords& position,
+		int radius,
+		int waterQuantity
+	);
+
+	~WaterContainer();
 
 	int getWaterQuantity() const {
 		return waterQuantity;
@@ -359,21 +458,21 @@ private:
 	int waterQuantity;
 };
 
-typedef vector<Wreck> Wrecks;
-
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Wreck::Wreck() :
-	waterQuantity(INVALID_WATER_QUANTITY)
-{
-
+WaterContainer::WaterContainer() : Entity() {
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Wreck::Wreck(int id, Coords position, int radius, int waterQuantity) :
+WaterContainer::WaterContainer(
+	int id,
+	const Coords& position,
+	int radius,
+	int waterQuantity
+) :
 	Entity(id, position, radius),
 	waterQuantity(waterQuantity)
 {
@@ -383,15 +482,125 @@ Wreck::Wreck(int id, Coords position, int radius, int waterQuantity) :
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Wreck::~Wreck() {
+WaterContainer::~WaterContainer() {
 
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-bool Wreck::empthy() const {
+bool WaterContainer::empthy() const {
 	return 0 == waterQuantity;
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class Tanker : public Vehicle, public WaterContainer {
+public:
+	Tanker();
+
+	Tanker(
+		int id,
+		const Coords& position,
+		int radius,
+		int playerId,
+		const Coords& velocity,
+		float mass,
+		int waterQuantity,
+		int waterCapacity
+	);
+
+	~Tanker();
+
+	int getWaterCapacity() const {
+		return waterCapacity;
+	}
+
+	void setWaterCapacity(int waterCapacity) { this->waterCapacity = waterCapacity; }
+
+private:
+	int waterCapacity;
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Tanker::Tanker() :
+	Vehicle(),
+	WaterContainer()
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Tanker::Tanker(
+	int id,
+	const Coords& position,
+	int radius,
+	int playerId,
+	const Coords& velocity,
+	float mass,
+	int waterQuantity,
+	int waterCapacity
+) :
+	Vehicle(id, position, radius, playerId, velocity, mass),
+	WaterContainer(id, position, radius, waterQuantity),
+	waterCapacity(waterCapacity)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Tanker::~Tanker() {
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class Wreck : public WaterContainer {
+public:
+	Wreck();
+	Wreck(int id, const Coords& position, int radius, int waterQuantity);
+	~Wreck();
+
+private:
+	int waterQuantity;
+};
+
+typedef vector<Wreck> Wrecks;
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Wreck::Wreck() :
+	WaterContainer()
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Wreck::Wreck(int id, const Coords& position, int radius, int waterQuantity) :
+	WaterContainer(id, position, radius, waterQuantity)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Wreck::~Wreck() {
+
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -470,6 +679,10 @@ Game::~Game() {
 //*************************************************************************************************************
 
 void Game::initGame() {
+	myReaper = new Reaper();
+	enemyReaper1 = new Reaper();
+	enemyReaper2 = new Reaper();
+
 	wrecks = new Wrecks;
 }
 
@@ -505,13 +718,8 @@ void Game::getTurnInput() {
 	cin >> myScore >> enemyScore1 >> enemyScore2 >> myRage >> enemyRage1>> enemyRage2 >> unitCount; cin.ignore();
 
 	if (OUTPUT_GAME_DATA) {
-		cerr << myScore << " ";
-		cerr << enemyScore1 << " ";
-		cerr << enemyScore2 << " ";
-		cerr << myRage << " ";
-		cerr << enemyRage1 << " ";
-		cerr << enemyRage2 << " ";
-		cerr << unitCount << " ";
+		cerr << myScore << " " << enemyScore1 << " " << enemyScore2 << " " << myRage << " ";
+		cerr << enemyRage1 << " " << enemyRage2 << " " << unitCount << " ";
 	}
 
 	for (int i = 0; i < unitCount; i++) {
@@ -520,17 +728,9 @@ void Game::getTurnInput() {
 		cin >> unitId >> unitType >> player >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2; cin.ignore();
 
 		if (OUTPUT_GAME_DATA) {
-			cerr << unitId << " ";
-			cerr << unitType << " ";
-			cerr << player << " ";
-			cerr << mass << " ";
-			cerr << radius << " ";
-			cerr << x << " ";
-			cerr << y << " ";
-			cerr << vx << " ";
-			cerr << vy << " ";
-			cerr << extra << " ";
-			cerr << extra2 << endl;
+			cerr << unitId << " " << unitType << " " << player << " " << mass << " ";
+			cerr << radius << " " << x << " " << y << " " << vx << " " << vy << " ";
+			cerr << extra << " " << extra2 << endl;
 		}
 
 		Coords position(x, y);
@@ -539,15 +739,15 @@ void Game::getTurnInput() {
 		if (UT_REAPER == unitType) {
 			switch (player) {
 				case (PI_MY_PALYER): {
-					myReaper = new Reaper(unitId, position, radius, player, velocity, mass);
+					myReaper->update(unitId, position, radius, player, velocity, mass);
 					break;
 				}
 				case (PI_ENEMY_PLAYER_1): {
-					enemyReaper1 = new Reaper(unitId, position, radius, player, velocity, mass);
+					enemyReaper1->update(unitId, position, radius, player, velocity, mass);
 					break;
 				}
 				case (PI_ENEMY_PLAYER_2): {
-					enemyReaper2 = new Reaper(unitId, position, radius, player, velocity, mass);
+					enemyReaper2->update(unitId, position, radius, player, velocity, mass);
 					break;
 				}
 				default: {
