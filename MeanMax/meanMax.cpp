@@ -43,6 +43,8 @@ enum PlayerId {
 enum UnitType {
 	UT_INVALID = -1,
 	UT_REAPER = 0,
+	UT_DESTROYER = 2,
+	UT_TANKER = 3,
 	UT_WRECK = 4,
 };
 
@@ -525,6 +527,8 @@ private:
 	int waterCapacity;
 };
 
+typedef vector<Tanker> Tankers;
+
 //*************************************************************************************************************
 //*************************************************************************************************************
 
@@ -608,6 +612,134 @@ Wreck::~Wreck() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
+class Destroyer : public Vehicle {
+public:
+	Destroyer();
+
+	Destroyer(
+		int id,
+		const Coords& position,
+		int radius,
+		int playerId,
+		const Coords& velocity,
+		float mass
+	);
+
+	~Destroyer();
+
+private:
+
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Destroyer::Destroyer() :
+	Vehicle()
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Destroyer::Destroyer(
+	int id,
+	const Coords& position,
+	int radius,
+	int playerId,
+	const Coords& velocity,
+	float mass
+) :
+	Vehicle(id, position, radius, playerId, velocity, mass)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Destroyer::~Destroyer() {
+
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class Team {
+public:
+	Team();
+	Team(Reaper* reaper, Destroyer* destroyer);
+	~Team();
+
+	Reaper* getReaper() const {
+		return reaper;
+	}
+
+	Destroyer* getDestroyer() const {
+		return destroyer;
+	}
+
+	void setReaper(Reaper* reaper) { this->reaper = reaper; }
+	void setDestroyer(Destroyer* destroyer) { this->destroyer = destroyer; }
+
+	void init();
+
+private:
+	Reaper* reaper;
+	Destroyer* destroyer;
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Team::Team() :
+	reaper(nullptr),
+	destroyer(nullptr)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Team::Team(Reaper* reaper, Destroyer* destroyer) :
+	reaper(reaper),
+	destroyer(destroyer)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Team::~Team() {
+	if (reaper) {
+		delete reaper;
+		reaper = nullptr;
+	}
+
+	if (destroyer) {
+		delete destroyer;
+		destroyer = nullptr;
+	}
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Team::init() {
+	reaper = new Reaper();
+	destroyer = new Destroyer();
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
 class Game {
 public:
 	Game();
@@ -626,15 +758,25 @@ public:
 	void debug() const;
 
 	Coords findNearestWreck() const;
+	void updateVehicle(
+		int playerId,
+		int unitType,
+		int unitId,
+		const Coords& position,
+		int radius,
+		const Coords& velocity,
+		float mass
+	);
 
 private:
 	int turnsCount;
 
-	Reaper* myReaper;
-	Reaper* enemyReaper1;
-	Reaper* enemyReaper2;
+	Team* myTeam;
+	Team* enemyTeam1;
+	Team* enemyTeam2;
 
 	Wrecks* wrecks;
+	Tankers* tankers;
 };
 
 //*************************************************************************************************************
@@ -642,10 +784,11 @@ private:
 
 Game::Game() :
 	turnsCount(0),
-	myReaper(nullptr),
-	enemyReaper1(nullptr),
-	enemyReaper2(nullptr),
-	wrecks(nullptr)
+	myTeam(nullptr),
+	enemyTeam1(nullptr),
+	enemyTeam2(nullptr),
+	wrecks(nullptr),
+	tankers(nullptr)
 {
 
 }
@@ -654,24 +797,29 @@ Game::Game() :
 //*************************************************************************************************************
 
 Game::~Game() {
-	if (myReaper) {
-		delete myReaper;
-		myReaper = nullptr;
+	if (myTeam) {
+		delete myTeam;
+		myTeam = nullptr;
 	}
 
-	if (enemyReaper1) {
-		delete enemyReaper1;
-		enemyReaper1 = nullptr;
+	if (enemyTeam1) {
+		delete enemyTeam1;
+		enemyTeam1 = nullptr;
 	}
 
-	if (enemyReaper2) {
-		delete enemyReaper2;
-		enemyReaper2 = nullptr;
+	if (enemyTeam2) {
+		delete enemyTeam2;
+		enemyTeam2 = nullptr;
 	}
 
 	if (wrecks) {
 		delete wrecks;
 		wrecks = nullptr;
+	}
+
+	if (tankers) {
+		delete tankers;
+		tankers = nullptr;
 	}
 }
 
@@ -679,11 +827,17 @@ Game::~Game() {
 //*************************************************************************************************************
 
 void Game::initGame() {
-	myReaper = new Reaper();
-	enemyReaper1 = new Reaper();
-	enemyReaper2 = new Reaper();
+	myTeam = new Team();
+	myTeam->init();
+
+	enemyTeam1 = new Team();
+	enemyTeam1->init();
+
+	enemyTeam2 = new Team();
+	enemyTeam2->init();
 
 	wrecks = new Wrecks;
+	tankers = new Tankers;
 }
 
 //*************************************************************************************************************
@@ -736,24 +890,12 @@ void Game::getTurnInput() {
 		Coords position(x, y);
 		Coords velocity(vx, vy);
 
-		if (UT_REAPER == unitType) {
-			switch (player) {
-				case (PI_MY_PALYER): {
-					myReaper->update(unitId, position, radius, player, velocity, mass);
-					break;
-				}
-				case (PI_ENEMY_PLAYER_1): {
-					enemyReaper1->update(unitId, position, radius, player, velocity, mass);
-					break;
-				}
-				case (PI_ENEMY_PLAYER_2): {
-					enemyReaper2->update(unitId, position, radius, player, velocity, mass);
-					break;
-				}
-				default: {
-					break;
-				}
-			}
+		if (UT_REAPER == unitType || UT_DESTROYER == unitType) {
+			updateVehicle(player, unitType, unitId, position, radius, velocity, mass);
+		}
+		else if (UT_TANKER == unitType) {
+			Tanker tanker(unitId, position, radius, player, velocity, mass, extra, extra2);
+			tankers->push_back(tanker);
 		}
 		else if (UT_WRECK == unitType) {
 			Wreck wreck(unitId, position, radius, extra);
@@ -818,7 +960,7 @@ Coords Game::findNearestWreck() const {
 		}
 
 		const Coords wreckPostion = it->getPosition();
-		const int distToMyReaper = wreckPostion.distance(myReaper->getPosition());
+		const int distToMyReaper = wreckPostion.distance(myTeam->getReaper()->getPosition());
 
 		if (distToMyReaper < minDist) {
 			res = wreckPostion;
@@ -827,6 +969,49 @@ Coords Game::findNearestWreck() const {
 	}
 
 	return res;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Game::updateVehicle(
+	int playerId,
+	int unitType,
+	int unitId,
+	const Coords& position,
+	int radius,
+	const Coords& velocity,
+	float mass
+) {
+	Team* team = nullptr;
+	Vehicle* vehicle = nullptr;
+
+	switch (playerId) {
+		case (PI_MY_PALYER): {
+			team = myTeam;
+			break;
+		}
+		case (PI_ENEMY_PLAYER_1): {
+			team = enemyTeam1;
+			break;
+		}
+		case (PI_ENEMY_PLAYER_2): {
+			team = enemyTeam2;
+			break;
+		}
+		default: {
+			break;
+		}
+	}
+
+	if (UT_REAPER == unitType) {
+		vehicle = team->getReaper();
+	}
+	else if (UT_DESTROYER == unitType) {
+		vehicle = team->getDestroyer();
+	}
+
+	vehicle->update(unitId, position, radius, playerId, velocity, mass);
 }
 
 //-------------------------------------------------------------------------------------------------------------
