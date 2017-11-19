@@ -18,7 +18,7 @@ using namespace std;
 const bool OUTPUT_GAME_DATA = 0;
 const bool USE_HARDCODED_INPUT = 0;
 
-//#define REDIRECT_CIN_FROM_FILE
+#define REDIRECT_CIN_FROM_FILE
 const string INPUT_FILE_NAME = "input.txt";
 
 const int INVALID_ID = -1;
@@ -28,15 +28,10 @@ const int ZERO_CHAR = '0';
 const int DIRECTIONS_COUNT = 8;
 
 const float INVALID_MASS = -1.f;
-
 const int INVALID_RADIUS = 0;
 const int INVALID_WATER_QUANTITY = -1;
 const int MAX_THROTTLE = 300;
-const int MAP_RADIUS = 6000;
-
 const string WAIT = "WAIT";
-
-
 
 
 enum PlayerId {
@@ -522,8 +517,6 @@ public:
 
 	void setWaterCapacity(int waterCapacity) { this->waterCapacity = waterCapacity; }
 
-	bool inCircleMap() const;
-
 private:
 	int waterCapacity;
 };
@@ -564,17 +557,6 @@ Tanker::Tanker(
 //*************************************************************************************************************
 
 Tanker::~Tanker() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-bool Tanker::inCircleMap() const {
-	const Coords center(0, 0);
-
-	int distanceTocenter = getPosition().distance(center);
-
-	return distanceTocenter <= MAP_RADIUS;
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -655,8 +637,7 @@ private:
 //*************************************************************************************************************
 
 Destroyer::Destroyer() :
-	Vehicle(),
-	targetId(INVALID_ID)
+	Vehicle()
 {
 
 }
@@ -948,15 +929,8 @@ void Game::makeTurn() {
 	Coords nearestWreck = findNearestWreck();
 	Coords nearestTanker = findNearestTanker();
 
-	//if (nearestWreck.isValid()) {
-		nearestWreck.print();
-	//}
-	//else {
-	//	myTeam->getDestroyer()->getPosition().print();
-	//}
-
+	nearestWreck.print();
 	cout << " " << MAX_THROTTLE / 2 << endl;
-	//cout << " " << nearestWreck.distance(myTeam->getReaper()->getPosition()) / (MAX_THROTTLE / 5) << endl;
 
 	nearestTanker.print();
 	cout << " " << MAX_THROTTLE << endl;
@@ -971,7 +945,6 @@ void Game::turnEnd() {
 	++turnsCount;
 
 	wrecks->clear();
-	tankers->clear();
 }
 
 //*************************************************************************************************************
@@ -1034,7 +1007,7 @@ Coords Game::findNearestTanker() const {
 
 	if (!res.isValid()) {
 		for (Tankers::const_iterator it = tankers->begin(); it != tankers->end(); ++it) {
-			if (it->empthy() || !it->inCircleMap()) {
+			if (it->empthy()) {
 				continue;
 			}
 
