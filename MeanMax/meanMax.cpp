@@ -239,6 +239,9 @@ public:
 	void setPosition(const Coords& position) { this->position = position; }
 	void setRadius(int radius) { this->radius = radius; }
 
+	virtual void simulate() = 0;
+	virtual void checkForCollisionWith(Entity* entity) = 0;
+
 private:
 	int id;
 	Coords position;
@@ -404,6 +407,9 @@ public:
 
 	~Reaper();
 
+	void simulate() override;
+	void checkForCollisionWith(Entity* entity) override;
+
 private:
 };
 
@@ -437,6 +443,18 @@ Reaper::Reaper(
 
 Reaper::~Reaper() {
 
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Reaper::simulate() {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Reaper::checkForCollisionWith(Entity* entity) {
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -522,13 +540,16 @@ public:
 
 	void setWaterCapacity(int waterCapacity) { this->waterCapacity = waterCapacity; }
 
+	void simulate() override;
+	void checkForCollisionWith(Entity* entity) override;
+
 	bool inCircleMap() const;
 
 private:
 	int waterCapacity;
 };
 
-typedef vector<Tanker> Tankers;
+typedef vector<Tanker*> Tankers;
 
 //*************************************************************************************************************
 //*************************************************************************************************************
@@ -569,6 +590,18 @@ Tanker::~Tanker() {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
+void Tanker::simulate() {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Tanker::checkForCollisionWith(Entity* entity) {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
 bool Tanker::inCircleMap() const {
 	const Coords center(0, 0);
 
@@ -588,10 +621,13 @@ public:
 	Wreck(int id, const Coords& position, int radius, int waterQuantity);
 	~Wreck();
 
+	void simulate() override;
+	void checkForCollisionWith(Entity* entity) override;
+
 private:
 };
 
-typedef vector<Wreck> Wrecks;
+typedef vector<Wreck*> Wrecks;
 
 //*************************************************************************************************************
 //*************************************************************************************************************
@@ -620,6 +656,18 @@ Wreck::~Wreck() {
 
 }
 
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Wreck::simulate() {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Wreck::checkForCollisionWith(Entity* entity) {
+}
+
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
@@ -646,6 +694,9 @@ public:
 	}
 
 	void setTargetId(int targetId) { this->targetId = targetId; }
+
+	void simulate() override;
+	void checkForCollisionWith(Entity* entity) override;
 
 private:
 	int targetId;
@@ -684,6 +735,18 @@ Destroyer::Destroyer(
 
 Destroyer::~Destroyer() {
 
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Destroyer::simulate() {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Destroyer::checkForCollisionWith(Entity* entity) {
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -783,7 +846,7 @@ public:
 	Coords findNearestWreck() const;
 	Coords findNearestTanker() const;
 
-	void updateVehicle(
+	Entity* updateVehicle(
 		int playerId,
 		int unitType,
 		int unitId,
@@ -794,6 +857,7 @@ public:
 	);
 
 	void fillEntities();
+	void clearTankersWrecksMemory();
 	Tanker* getTanker(int tankerId) const;
 
 private:
@@ -907,6 +971,8 @@ void Game::getTurnInput() {
 	}
 
 	for (int i = 0; i < unitCount; i++) {
+		Entity* entity = nullptr;
+
 		int unitId, unitType, player, radius, x, y, vx, vy, extra, extra2;
 		float mass;
 		cin >> unitId >> unitType >> player >> mass >> radius >> x >> y >> vx >> vy >> extra >> extra2; cin.ignore();
@@ -921,16 +987,20 @@ void Game::getTurnInput() {
 		Coords velocity(vx, vy);
 
 		if (UT_REAPER == unitType || UT_DESTROYER == unitType) {
-			updateVehicle(player, unitType, unitId, position, radius, velocity, mass);
+			entity = updateVehicle(player, unitType, unitId, position, radius, velocity, mass);
 		}
 		else if (UT_TANKER == unitType) {
-			Tanker tanker(unitId, position, radius, player, velocity, mass, extra, extra2);
+			Tanker* tanker = new Tanker(unitId, position, radius, player, velocity, mass, extra, extra2);
 			tankers->push_back(tanker);
+			entity = tanker;
 		}
 		else if (UT_WRECK == unitType) {
-			Wreck wreck(unitId, position, radius, extra);
+			Wreck* wreck = new Wreck (unitId, position, radius, extra);
 			wrecks->push_back(wreck);
+			entity = wreck;
 		}
+
+		entities[unitId] = entity;
 	}
 }
 
@@ -938,7 +1008,8 @@ void Game::getTurnInput() {
 //*************************************************************************************************************
 
 void Game::turnBegin() {
-	fillEntities();
+	clearTankersWrecksMemory();
+	entities.clear();
 }
 
 //*************************************************************************************************************
@@ -948,15 +1019,8 @@ void Game::makeTurn() {
 	Coords nearestWreck = findNearestWreck();
 	Coords nearestTanker = findNearestTanker();
 
-	//if (nearestWreck.isValid()) {
-		nearestWreck.print();
-	//}
-	//else {
-	//	myTeam->getDestroyer()->getPosition().print();
-	//}
-
+	nearestWreck.print();
 	cout << " " << MAX_THROTTLE / 2 << endl;
-	//cout << " " << nearestWreck.distance(myTeam->getReaper()->getPosition()) / (MAX_THROTTLE / 5) << endl;
 
 	nearestTanker.print();
 	cout << " " << MAX_THROTTLE << endl;
@@ -998,11 +1062,11 @@ Coords Game::findNearestWreck() const {
 	int minDist = INT_MAX;
 
 	for (Wrecks::const_iterator it = wrecks->begin(); it != wrecks->end(); ++it) {
-		if (it->empthy()) {
+		if ((*it)->empthy()) {
 			continue;
 		}
 
-		const Coords wreckPostion = it->getPosition();
+		const Coords wreckPostion = (*it)->getPosition();
 		const int distToMyReaper = wreckPostion.distance(myTeam->getReaper()->getPosition());
 
 		if (distToMyReaper < minDist) {
@@ -1034,17 +1098,17 @@ Coords Game::findNearestTanker() const {
 
 	if (!res.isValid()) {
 		for (Tankers::const_iterator it = tankers->begin(); it != tankers->end(); ++it) {
-			if (it->empthy() || !it->inCircleMap()) {
+			if ((*it)->empthy() || !(*it)->inCircleMap()) {
 				continue;
 			}
 
-			const Coords tankerPostion = it->getPosition();
+			const Coords tankerPostion = (*it)->getPosition();
 			const int distToMyDestroyer = tankerPostion.distance(myDestroyer->getPosition());
 
 			if (distToMyDestroyer < minDist) {
 				res = tankerPostion;
 				minDist = distToMyDestroyer;
-				myDestroyer->setTargetId(it->getId());
+				myDestroyer->setTargetId((*it)->getId());
 			}
 		}
 	}
@@ -1055,7 +1119,7 @@ Coords Game::findNearestTanker() const {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-void Game::updateVehicle(
+Entity* Game::updateVehicle(
 	int playerId,
 	int unitType,
 	int unitId,
@@ -1093,12 +1157,34 @@ void Game::updateVehicle(
 	}
 
 	vehicle->update(unitId, position, radius, playerId, velocity, mass);
+
+	return vehicle;
 }
 
 //*************************************************************************************************************
 //*************************************************************************************************************
 
 void Game::fillEntities() {
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Game::clearTankersWrecksMemory() {
+	for (size_t wreckIdx = 0; wreckIdx < tankers->size(); ++wreckIdx) {
+		if (tankers->at(wreckIdx)) {
+			delete tankers->at(wreckIdx);
+			tankers->at(wreckIdx) = nullptr;
+		}
+	}
+
+	for (size_t tankerIdx = 0; tankerIdx < tankers->size(); ++tankerIdx) {
+		if (tankers->at(tankerIdx)) {
+			delete tankers->at(tankerIdx);
+			tankers->at(tankerIdx) = nullptr;
+		}
+	}
 }
 
 //*************************************************************************************************************
@@ -1108,8 +1194,8 @@ Tanker* Game::getTanker(int tankerId) const {
 	Tanker* tanker = nullptr;
 
 	for (Tankers::iterator it = tankers->begin(); it != tankers->end(); ++it) {
-		if (it->getId() == tankerId) {
-			tanker = &(*it);
+		if ((*it)->getId() == tankerId) {
+			tanker = *it;
 			break;
 		}
 	}
