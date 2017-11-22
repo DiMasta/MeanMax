@@ -12,13 +12,14 @@
 #include <math.h>
 #include <fstream>
 #include <climits>
+#include <cstring>
 
 using namespace std;
 
 const bool OUTPUT_GAME_DATA = 0;
 const bool USE_HARDCODED_INPUT = 0;
 
-//#define REDIRECT_CIN_FROM_FILE
+#define REDIRECT_CIN_FROM_FILE
 const string INPUT_FILE_NAME = "input.txt";
 
 const int INVALID_ID = -1;
@@ -31,6 +32,10 @@ const int VEHICLES_PER_TEAM = 2;
 const int VEHICLES_COUNT = TEAMS_COUNT * VEHICLES_PER_TEAM;
 
 const float INVALID_MASS = -1.f;
+const float INVALID_FRICTION = -1.f;
+const float REAPER_FRICTION = .2f;
+const float DESTROYER_FRICTION = .3f;
+const float TANKER_FRICTION = .4f;
 
 const int INVALID_RADIUS = 0;
 const int INVALID_WATER_QUANTITY = -1;
@@ -229,6 +234,59 @@ Coords DIRECTIONS[DIRECTIONS_COUNT] = {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
+class Action {
+public:
+	Action();
+	Action(Coords accelerationDir, int throttle);
+	~Action();
+
+	Coords getAccelerationDir() const {
+		return accelerationDir;
+	}
+
+	int getThrottle() const {
+		return throttle;
+	}
+
+	void setAccelerationDir(Coords accelerationDir) { this->accelerationDir = accelerationDir; }
+	void setThrottle(int throttle) { this->throttle = throttle; }
+
+private:
+	Coords accelerationDir;
+	int throttle;
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::Action() :
+	accelerationDir(),
+	throttle(INVALID_THROTTLE)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::Action(Coords accelerationDir, int throttle) :
+	accelerationDir(accelerationDir),
+	throttle(throttle)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::~Action() {
+
+}
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
 class Entity {
 public:
 	Entity();
@@ -314,7 +372,8 @@ public:
 		int radius,
 		int playerId,
 		const Coords& velocity,
-		float mass
+		float mass,
+		float friction
 	);
 
 	~Vehicle();
@@ -331,23 +390,22 @@ public:
 		return mass;
 	}
 
+	float getFriction() const {
+		return friction;
+	}
+
 	void setPlayerId(int playerId) { this->playerId = playerId; }
 	void setVelocity(const Coords& velocity) { this->velocity = velocity; }
 	void setMass(float mass) { this->mass = mass; }
-
-	void update(
-		int unitId,
-		const Coords& position,
-		int radius,
-		int playerId,
-		const Coords& velocity,
-		float mass
-	);
+	void setFriction(float friction) { this->friction = friction; }
+	
+	void move(const Action& action);
 
 private:
 	int playerId;
 	Coords velocity;
 	float mass;
+	float friction;
 };
 
 //*************************************************************************************************************
@@ -357,7 +415,8 @@ Vehicle::Vehicle() :
 	Entity(),
 	playerId(INVALID_ID),
 	velocity(),
-	mass(INVALID_MASS)
+	mass(INVALID_MASS),
+	friction(INVALID_FRICTION)
 {
 
 }
@@ -372,12 +431,14 @@ Vehicle::Vehicle(
 	int radius,
 	int playerId,
 	const Coords& velocity,
-	float mass
+	float mass,
+	float friction
 ) :
 	Entity(id, unitType, position, radius),
 	playerId(playerId),
 	velocity(velocity),
-	mass(mass)
+	mass(mass),
+	friction(friction)
 {
 
 }
@@ -385,21 +446,49 @@ Vehicle::Vehicle(
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-void Vehicle::update(
-	int unitId,
-	const Coords& position,
-	int radius,
-	int playerId,
-	const Coords& velocity,
-	float mass
-) {
-	setId(unitId);
-	setPosition(position);
-	setRadius(radius);
+void Vehicle::move(const Action& action) {
+	Coords accDir = action.getAccelerationDir();
+	int xAccDir = accDir.getXCoord();
+	int yAccDir = accDir.getYCoord();
+	int throttle = action.getThrottle();
 
-	this->playerId = playerId;
-	this->velocity = velocity;
-	this->mass = mass;
+	float acceleration = float(throttle) / mass;
+
+	int x = getPosition().getXCoord();
+	int vXInitial = getVelocity().getXCoord();
+
+	int y = getPosition().getYCoord();
+	int vYInitial = getVelocity().getYCoord();
+
+	float horizontalKatet = float(xAccDir - x);
+	float verticalKatet = float(yAccDir - y);
+
+	float hypotenose = sqrtf((horizontalKatet * horizontalKatet) + (verticalKatet * verticalKatet));
+
+	float cosAlpha = horizontalKatet / hypotenose;
+	float sinAlpha = verticalKatet / hypotenose;
+
+	float xAcc = cosAlpha * acceleration;
+	float yAcc = sinAlpha * acceleration;
+
+	float vXFinal = float(vXInitial) + xAcc;
+	float vYFinal = float(vYInitial) + yAcc;
+
+	float vXFriction = vXFinal * (1.f - friction);
+	float vYFriction = vYFinal * (1.f - friction);
+
+	float roundVXFriction = round(vXFriction);
+	float roundVYFriction = round(vYFriction);
+
+	setVelocity(Coords(int(roundVXFriction), int(roundVYFriction)));
+
+	float xFinal = x + vXFinal;
+	float yFinal = y + vYFinal;
+
+	float roundXFinal = round(xFinal);
+	float roundYFinal = round(yFinal);
+
+	setPosition(Coords(int(roundXFinal), int(roundYFinal)));
 }
 
 //*************************************************************************************************************
@@ -425,7 +514,8 @@ public:
 		int radius,
 		int playerId,
 		const Coords& velocity,
-		float mass
+		float mass,
+		float friction
 	);
 
 	~Reaper();
@@ -455,9 +545,10 @@ Reaper::Reaper(
 	int radius,
 	int playerId,
 	const Coords& velocity,
-	float mass
+	float mass,
+	float friction
 ) :
-	Vehicle(id, unitType, position, radius, playerId, velocity, mass)
+	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction)
 {
 
 }
@@ -553,6 +644,7 @@ public:
 		int playerId,
 		const Coords& velocity,
 		float mass,
+		float friction,
 		int waterQuantity,
 		int waterCapacity
 	);
@@ -597,10 +689,11 @@ Tanker::Tanker(
 	int playerId,
 	const Coords& velocity,
 	float mass,
+	float friction,
 	int waterQuantity,
 	int waterCapacity
 ) :
-	Vehicle(id, unitType, position, radius, playerId, velocity, mass),
+	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction),
 	WaterContainer(waterQuantity),
 	waterCapacity(waterCapacity)
 {
@@ -725,6 +818,7 @@ public:
 		int playerId,
 		const Coords& velocity,
 		float mass,
+		float friction,
 		int targetId
 	);
 
@@ -764,9 +858,10 @@ Destroyer::Destroyer(
 	int playerId,
 	const Coords& velocity,
 	float mass,
+	float friction,
 	int targetId
 ) :
-	Vehicle(id, unitType, position, radius, playerId, velocity, mass),
+	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction),
 	targetId(targetId)
 {
 
@@ -868,60 +963,6 @@ void Team::init() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class Action {
-public:
-	Action();
-	Action(Coords accelerationDir, int throttle);
-	~Action();
-
-	Coords getAccelerationDir() const {
-		return accelerationDir;
-	}
-
-	int getThrottle() const {
-		return throttle;
-	}
-
-	void setAccelerationDir(Coords accelerationDir) { this->accelerationDir = accelerationDir; }
-	void setThrottle(int throttle) { this->throttle = throttle; }
-
-private:
-	Coords accelerationDir;
-	int throttle;
-};
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Action::Action() :
-	accelerationDir(),
-	throttle(INVALID_THROTTLE)
-{
-
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Action::Action(Coords accelerationDir, int throttle) :
-	accelerationDir(accelerationDir),
-	throttle(throttle)
-{
-
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Action::~Action() {
-
-}
-
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-
 class State {
 public:
 	State();
@@ -951,7 +992,7 @@ State::State() :
 State::State(Entities entities, Action actions[VEHICLES_COUNT]) :
 	entities(entities)
 {
-	memcpy(this->actions, actions, VEHICLES_COUNT);
+	memcpy(this->actions, actions, VEHICLES_COUNT * sizeof(Action));
 }
 
 //*************************************************************************************************************
@@ -965,7 +1006,12 @@ State::~State() {
 //*************************************************************************************************************
 
 void State::simulate() {
+	for (int vehicleIdx = 0; vehicleIdx < VEHICLES_COUNT; ++vehicleIdx) {
+		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[vehicleIdx]);
+		vehicle->move(actions[vehicleIdx]);
+	}
 
+	// Move Tankers
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -1058,7 +1104,7 @@ void Game::getTurnInput() {
 
 	if (OUTPUT_GAME_DATA) {
 		cerr << myScore << " " << enemyScore1 << " " << enemyScore2 << " " << myRage << " ";
-		cerr << enemyRage1 << " " << enemyRage2 << " " << unitCount << " ";
+		cerr << enemyRage1 << " " << enemyRage2 << " " << unitCount << " " << endl;;
 	}
 
 	for (int i = 0; i < unitCount; i++) {
@@ -1078,13 +1124,13 @@ void Game::getTurnInput() {
 		Coords velocity(vx, vy);
 
 		if (UT_REAPER == unitType) {
-			entity = new Reaper(unitId, unitType, position, radius, player, velocity, mass);
+			entity = new Reaper(unitId, unitType, position, radius, player, velocity, mass, REAPER_FRICTION);
 		}
 		else if (UT_DESTROYER == unitType) {
-			entity = new Destroyer(unitId, unitType, position, radius, player, velocity, mass, INVALID_ID);
+			entity = new Destroyer(unitId, unitType, position, radius, player, velocity, mass, DESTROYER_FRICTION, INVALID_ID);
 		}
 		else if (UT_TANKER == unitType) {
-			entity = new Tanker(unitId, unitType, position, radius, player, velocity, mass, extra, extra2);
+			entity = new Tanker(unitId, unitType, position, radius, player, velocity, mass, TANKER_FRICTION, extra, extra2);
 		}
 		else if (UT_WRECK == unitType) {
 			entity = new Wreck(unitId, unitType, position, radius, extra);
@@ -1107,14 +1153,24 @@ void Game::turnBegin() {
 void Game::makeTurn() {
 	simulateTurn(); // Test simulation
 
-	Coords nearestWreck = findNearestWreck();
-	Coords nearestTanker = findNearestTanker();
+	if (0 == turnsCount) {
+		Coords nearestWreck = findNearestWreck();
+		Coords nearestTanker = findNearestTanker();
 
-	nearestWreck.print();
-	cout << " " << MAX_THROTTLE / 2 << endl;
+		nearestWreck.print();
+		cout << " " << MAX_THROTTLE / 2 << endl;
 
-	nearestTanker.print();
-	cout << " " << MAX_THROTTLE << endl;
+		nearestTanker.print();
+		cout << " " << MAX_THROTTLE << endl;
+	}
+	else if (1 == turnsCount){
+		cout << "5000 5000 150" << endl;
+		cout << "5000 5000 300" << endl;
+	}
+	else {
+		cout << "-3897 -10 78" << endl;
+		cout << "90 -6776 265" << endl;
+	}
 
 	cout << WAIT << endl;
 }
@@ -1223,12 +1279,12 @@ Coords Game::findNearestTanker() const {
 //*************************************************************************************************************
 
 void Game::gameDataClear() {
-	for (Entities::iterator it = entities.begin(); it != entities.end(); ++it) {
+	for (Entities::iterator it = entities.begin(); it != entities.end();) {
 		if (it->second) {
 			delete it->second;
 			it->second = nullptr;
 
-			entities.erase(it);
+			it = entities.erase(it);
 		}
 	}
 
@@ -1241,9 +1297,29 @@ void Game::gameDataClear() {
 void Game::simulateTurn() {
 	Action actions[VEHICLES_COUNT];
 
-	for (int actionIdx = 0; actionIdx < VEHICLES_COUNT; ++actionIdx) {
-		actions[actionIdx].setAccelerationDir(Coords(0, 0));
-		actions[actionIdx].setThrottle(MAX_THROTTLE);
+	if (0 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
+		actions[2] = Action(Coords(-7558, -4208), 250);
+		actions[3] = Action(Coords(-7558, -4208), 300);
+		actions[4] = Action(Coords(7423, -4441), 250);
+		actions[5] = Action(Coords(7423, -4441), 300);
+	}
+	else if (1 == turnsCount) {
+		actions[0] = Action(Coords(5000, 5000), 150);
+		actions[1] = Action(Coords(5000, 5000), 300);
+		actions[2] = Action(Coords(-7063, -3932), 250);
+		actions[3] = Action(Coords(-7063, -3932), 300);
+		actions[4] = Action(Coords(6937, -4150), 250);
+		actions[5] = Action(Coords(6937, -4150), 300);
+	}
+	else {
+		actions[0] = Action(Coords(-3897, -10), 78);
+		actions[1] = Action(Coords(90, -6776), 265);
+		actions[2] = Action(Coords(-6620, -3685), 250);
+		actions[3] = Action(Coords(-6620, -3685), 300);
+		actions[4] = Action(Coords(6502, -3890), 250);
+		actions[5] = Action(Coords(6502, -3890), 300);
 	}
 
 	State state(entities, actions);
@@ -1278,3 +1354,7 @@ int main(int argc, char** argv) {
 }
 
 // seed=744360238
+// Di_Masta, it's
+// velocity += acceleration;
+// position += velocity;
+// velocity *= friction;
