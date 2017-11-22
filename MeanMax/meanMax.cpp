@@ -26,11 +26,16 @@ const int INVALID_NODE_DEPTH = -1;
 const int TREE_ROOT_NODE_DEPTH = 1;
 const int ZERO_CHAR = '0';
 const int DIRECTIONS_COUNT = 8;
+const int TEAMS_COUNT = 3;
+const int VEHICLES_PER_TEAM = 2;
+const int VEHICLES_COUNT = TEAMS_COUNT * VEHICLES_PER_TEAM;
 
 const float INVALID_MASS = -1.f;
 
 const int INVALID_RADIUS = 0;
 const int INVALID_WATER_QUANTITY = -1;
+const int INVALID_THROTTLE = -1;
+const int MIN_THROTTLE = 0;
 const int MAX_THROTTLE = 300;
 const int MAP_RADIUS = 6000;
 
@@ -863,6 +868,111 @@ void Team::init() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
+class Action {
+public:
+	Action();
+	Action(Coords accelerationDir, int throttle);
+	~Action();
+
+	Coords getAccelerationDir() const {
+		return accelerationDir;
+	}
+
+	int getThrottle() const {
+		return throttle;
+	}
+
+	void setAccelerationDir(Coords accelerationDir) { this->accelerationDir = accelerationDir; }
+	void setThrottle(int throttle) { this->throttle = throttle; }
+
+private:
+	Coords accelerationDir;
+	int throttle;
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::Action() :
+	accelerationDir(),
+	throttle(INVALID_THROTTLE)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::Action(Coords accelerationDir, int throttle) :
+	accelerationDir(accelerationDir),
+	throttle(throttle)
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Action::~Action() {
+
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class State {
+public:
+	State();
+	State(Entities entities, Action actions[VEHICLES_COUNT]);
+	~State();
+
+	void simulate();
+
+private:
+	Entities entities;
+	Action actions[VEHICLES_COUNT];
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+State::State() :
+	entities(),
+	actions()
+{
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+State::State(Entities entities, Action actions[VEHICLES_COUNT]) :
+	entities(entities)
+{
+	memcpy(this->actions, actions, VEHICLES_COUNT);
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+State::~State() {
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void State::simulate() {
+
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
 class Game {
 public:
 	Game();
@@ -883,6 +993,8 @@ public:
 	Coords findNearestWreck() const;
 	Coords findNearestTanker() const;
 	void gameDataClear();
+
+	void simulateTurn();
 
 private:
 	int turnsCount;
@@ -993,6 +1105,8 @@ void Game::turnBegin() {
 //*************************************************************************************************************
 
 void Game::makeTurn() {
+	simulateTurn(); // Test simulation
+
 	Coords nearestWreck = findNearestWreck();
 	Coords nearestTanker = findNearestTanker();
 
@@ -1119,6 +1233,21 @@ void Game::gameDataClear() {
 	}
 
 	entities.clear();
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Game::simulateTurn() {
+	Action actions[VEHICLES_COUNT];
+
+	for (int actionIdx = 0; actionIdx < VEHICLES_COUNT; ++actionIdx) {
+		actions[actionIdx].setAccelerationDir(Coords(0, 0));
+		actions[actionIdx].setThrottle(MAX_THROTTLE);
+	}
+
+	State state(entities, actions);
+	state.simulate();
 }
 
 //-------------------------------------------------------------------------------------------------------------
