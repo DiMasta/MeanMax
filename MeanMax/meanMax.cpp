@@ -76,13 +76,14 @@ enum UnitType {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-typedef int Coord;
-const Coord INVALID_COORD = -1;
+typedef float Coord;
+const Coord INVALID_COORD = -1.f;
 
 class Coords {
 public:
 	Coords();
 	Coords(Coord xCoord, Coord yCoord);
+	Coords(const Coords& coords);
 
 	Coord getXCoord() const {
 		return xCoord;
@@ -99,12 +100,14 @@ public:
 	bool operator==(const Coords& other);
 	Coords operator+(const Coords& other);
 	Coords& operator+=(const Coords& other);
+	Coords operator-(const Coords& other);
+	Coords& operator-=(const Coords& other);
 
 	bool isValid() const;
 	void debug() const;
 	void print() const;
 
-	int distance(const Coords& coords) const;
+	Coord distance(const Coords& coords) const;
 
 private:
 	Coord xCoord;
@@ -130,6 +133,16 @@ Coords::Coords(
 	xCoord(xCoord),
 	yCoord(yCoord)
 {
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Coords::Coords(const Coords& coords) :
+	xCoord(coords.xCoord),
+	yCoord(coords.yCoord)
+{
+
 }
 
 //*************************************************************************************************************
@@ -171,6 +184,23 @@ Coords& Coords::operator+=(const Coords& other) {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
+Coords Coords::operator-(const Coords& other) {
+	return Coords(xCoord - other.xCoord, yCoord - other.yCoord);
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Coords& Coords::operator-=(const Coords& other) {
+	xCoord -= other.xCoord;
+	yCoord -= other.yCoord;
+
+	return *this;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
 bool Coords::isValid() const {
 	return INVALID_COORD != xCoord && INVALID_COORD != yCoord;
 }
@@ -192,11 +222,11 @@ void Coords::print() const {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-int Coords::distance(const Coords& coords) const {
-	int kat0 = coords.xCoord - xCoord;
-	int kat1 = coords.yCoord - yCoord;
+Coord Coords::distance(const Coords& coords) const {
+	Coord kat0 = coords.xCoord - xCoord;
+	Coord kat1 = coords.yCoord - yCoord;
 
-	int hip = (int)sqrt((kat0 * kat0) + (kat1 * kat1));
+	Coord hip = (Coord)sqrt((kat0 * kat0) + (kat1 * kat1));
 	return hip;
 }
 
@@ -290,7 +320,15 @@ Action::~Action() {
 class Entity {
 public:
 	Entity();
-	Entity(int id, int unitType, const Coords& position, int radius);
+
+	Entity(
+		int id,
+		int unitType,
+		const Coords& position,
+		int radius,
+		const Coords& velocity
+	);
+
 	virtual ~Entity();
 
 	int getId() const {
@@ -309,10 +347,15 @@ public:
 		return radius;
 	}
 
+	Coords getVelocity() const {
+		return velocity;
+	}
+
 	void setId(int id) { this->id = id; }
 	void setUnitType(int unitType) { this->unitType = unitType; }
 	void setPosition(const Coords& position) { this->position = position; }
 	void setRadius(int radius) { this->radius = radius; }
+	void setVelocity(const Coords& velocity) { this->velocity = velocity; }
 
 	virtual void simulate() = 0;
 	virtual void checkForCollisionWith(Entity* entity) = 0;
@@ -322,6 +365,7 @@ private:
 	int unitType;
 	Coords position;
 	int radius;
+	Coords velocity;
 };
 
 typedef map<int, Entity*> Entities;
@@ -341,11 +385,18 @@ Entity::Entity() :
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Entity::Entity(int id, int unitType, const Coords& position, int radius) :
+Entity::Entity(
+	int id,
+	int unitType,
+	const Coords& position,
+	int radius,
+	const Coords& velocity
+) :
 	id(id),
 	unitType(unitType),
 	position(position),
-	radius(radius)
+	radius(radius),
+	velocity(velocity)
 {
 }
 
@@ -382,10 +433,6 @@ public:
 		return playerId;
 	}
 
-	Coords getVelocity() const {
-		return velocity;
-	}
-
 	float getMass() const {
 		return mass;
 	}
@@ -395,7 +442,6 @@ public:
 	}
 
 	void setPlayerId(int playerId) { this->playerId = playerId; }
-	void setVelocity(const Coords& velocity) { this->velocity = velocity; }
 	void setMass(float mass) { this->mass = mass; }
 	void setFriction(float friction) { this->friction = friction; }
 	
@@ -403,7 +449,6 @@ public:
 
 private:
 	int playerId;
-	Coords velocity;
 	float mass;
 	float friction;
 };
@@ -414,7 +459,6 @@ private:
 Vehicle::Vehicle() :
 	Entity(),
 	playerId(INVALID_ID),
-	velocity(),
 	mass(INVALID_MASS),
 	friction(INVALID_FRICTION)
 {
@@ -434,9 +478,8 @@ Vehicle::Vehicle(
 	float mass,
 	float friction
 ) :
-	Entity(id, unitType, position, radius),
+	Entity(id, unitType, position, radius, velocity),
 	playerId(playerId),
-	velocity(velocity),
 	mass(mass),
 	friction(friction)
 {
@@ -448,20 +491,20 @@ Vehicle::Vehicle(
 
 void Vehicle::move(const Action& action) {
 	Coords accDir = action.getAccelerationDir();
-	int xAccDir = accDir.getXCoord();
-	int yAccDir = accDir.getYCoord();
+	Coord xAccDir = accDir.getXCoord();
+	Coord yAccDir = accDir.getYCoord();
 	int throttle = action.getThrottle();
 
 	float acceleration = float(throttle) / mass;
 
-	int x = getPosition().getXCoord();
-	int vXInitial = getVelocity().getXCoord();
+	Coord x = getPosition().getXCoord();
+	Coord vXInitial = getVelocity().getXCoord();
 
-	int y = getPosition().getYCoord();
-	int vYInitial = getVelocity().getYCoord();
+	Coord y = getPosition().getYCoord();
+	Coord vYInitial = getVelocity().getYCoord();
 
-	float horizontalKatet = float(xAccDir - x);
-	float verticalKatet = float(yAccDir - y);
+	float horizontalKatet = xAccDir - x;
+	float verticalKatet = yAccDir - y;
 
 	float hypotenose = sqrtf((horizontalKatet * horizontalKatet) + (verticalKatet * verticalKatet));
 
@@ -471,8 +514,8 @@ void Vehicle::move(const Action& action) {
 	float xAcc = cosAlpha * acceleration;
 	float yAcc = sinAlpha * acceleration;
 
-	float vXFinal = float(vXInitial) + xAcc;
-	float vYFinal = float(vYInitial) + yAcc;
+	float vXFinal = vXInitial + xAcc;
+	float vYFinal = vYInitial + yAcc;
 
 	float vXFriction = vXFinal * (1.f - friction);
 	float vYFriction = vYFinal * (1.f - friction);
@@ -480,7 +523,7 @@ void Vehicle::move(const Action& action) {
 	float roundVXFriction = round(vXFriction);
 	float roundVYFriction = round(vYFriction);
 
-	setVelocity(Coords(int(roundVXFriction), int(roundVYFriction)));
+	setVelocity(Coords(roundVXFriction, roundVYFriction));
 
 	float xFinal = x + vXFinal;
 	float yFinal = y + vYFinal;
@@ -488,7 +531,7 @@ void Vehicle::move(const Action& action) {
 	float roundXFinal = round(xFinal);
 	float roundYFinal = round(yFinal);
 
-	setPosition(Coords(int(roundXFinal), int(roundYFinal)));
+	setPosition(Coords(roundXFinal, roundYFinal));
 }
 
 //*************************************************************************************************************
@@ -724,9 +767,9 @@ void Tanker::checkForCollisionWith(Entity* entity) {
 bool Tanker::inCircleMap() const {
 	const Coords center(0, 0);
 
-	int distanceTocenter = getPosition().distance(center);
+	Coord distanceTocenter = getPosition().distance(center);
 
-	return distanceTocenter <= MAP_RADIUS;
+	return distanceTocenter <= float(MAP_RADIUS);
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -743,7 +786,8 @@ public:
 		int unitType,
 		const Coords& position,
 		int radius,
-		int waterQuantity
+		int waterQuantity,
+		const Coords& velocity
 	);
 
 	~Wreck();
@@ -774,9 +818,10 @@ Wreck::Wreck(
 	int unitType,
 	const Coords& position,
 	int radius,
-	int waterQuantity
+	int waterQuantity,
+	const Coords& velocity
 ) :
-	Entity(id, unitType, position, radius),
+	Entity(id, unitType, position, radius, velocity),
 	WaterContainer(waterQuantity)
 {
 
@@ -971,6 +1016,14 @@ public:
 
 	void simulate();
 
+	Coords closestPointToLine(
+		const Coords& point,
+		const Coords& linePoint1,
+		const Coords& linePoint2
+	);
+
+	void checkForCollision(Entity* entityA, Entity* entityB);
+
 private:
 	Entities entities;
 	Action actions[VEHICLES_COUNT];
@@ -1006,12 +1059,65 @@ State::~State() {
 //*************************************************************************************************************
 
 void State::simulate() {
+	Coords p(7, 2);
+	Coords p1(1, 4);
+	Coords p2(5, 4);
+	Coords c = closestPointToLine(p, p1, p2);
+
+	for (size_t entityAIdx = 0; entityAIdx < entities.size(); ++entityAIdx) {
+		for (size_t entityBIdx = entityAIdx + 1; entityBIdx < entities.size(); ++entityBIdx) {
+			
+		}
+	}
+
 	for (int vehicleIdx = 0; vehicleIdx < VEHICLES_COUNT; ++vehicleIdx) {
 		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[vehicleIdx]);
 		vehicle->move(actions[vehicleIdx]);
 	}
 
 	// Move Tankers
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Coords State::closestPointToLine(
+	const Coords& point,
+	const Coords& linePoint1,
+	const Coords& linePoint2
+) {
+	float da = linePoint2.getYCoord() - linePoint1.getYCoord();
+	float db = linePoint1.getXCoord() - linePoint2.getXCoord();
+	float c1 = da * linePoint1.getXCoord() + db * linePoint1.getYCoord();
+	float c2 = -db * point.getXCoord() + da * point.getYCoord();
+	float det = da * da + db * db;
+
+	Coords clossestPoint;
+
+	if (det != 0) {
+		clossestPoint.setXCoord((da * c1 - db * c2) / det);
+		clossestPoint.setYCoord((da * c2 + db * c1) / det);
+	}
+	else {
+		// The point is already on the line
+		clossestPoint.setXCoord(point.getXCoord());
+		clossestPoint.setYCoord(point.getYCoord());
+	}
+
+	return clossestPoint;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void State::checkForCollision(Entity* entityA, Entity* entityB) {
+	// B will is used as center of the coordinate system
+	Coords newAPosition = entityA->getPosition() - entityB->getPosition();
+	Coords newAVelocity = entityA->getVelocity() - entityB->getVelocity();
+
+	Coords postionAfterVelocity = newAPosition + newAVelocity;
+
+	Coords pointFromOriginToLine = closestPointToLine(Coords(0.f, 0.f), newAPosition, postionAfterVelocity);
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -1120,8 +1226,8 @@ void Game::getTurnInput() {
 			cerr << extra << " " << extra2 << endl;
 		}
 
-		Coords position(x, y);
-		Coords velocity(vx, vy);
+		Coords position = Coords(Coord(x), Coord(y));
+		Coords velocity = Coords(Coord(vx), Coord(vy));
 
 		if (UT_REAPER == unitType) {
 			entity = new Reaper(unitId, unitType, position, radius, player, velocity, mass, REAPER_FRICTION);
@@ -1133,7 +1239,7 @@ void Game::getTurnInput() {
 			entity = new Tanker(unitId, unitType, position, radius, player, velocity, mass, TANKER_FRICTION, extra, extra2);
 		}
 		else if (UT_WRECK == unitType) {
-			entity = new Wreck(unitId, unitType, position, radius, extra);
+			entity = new Wreck(unitId, unitType, position, radius, extra, Coords(0.f, 0.f));
 		}
 
 		entities[unitId] = entity;
@@ -1153,7 +1259,7 @@ void Game::turnBegin() {
 void Game::makeTurn() {
 	simulateTurn(); // Test simulation
 
-	if (0 == turnsCount) {
+	//if (0 == turnsCount) {
 		Coords nearestWreck = findNearestWreck();
 		Coords nearestTanker = findNearestTanker();
 
@@ -1162,15 +1268,15 @@ void Game::makeTurn() {
 
 		nearestTanker.print();
 		cout << " " << MAX_THROTTLE << endl;
-	}
-	else if (1 == turnsCount){
-		cout << "5000 5000 150" << endl;
-		cout << "5000 5000 300" << endl;
-	}
-	else {
-		cout << "-3897 -10 78" << endl;
-		cout << "90 -6776 265" << endl;
-	}
+	//}
+	//else if (1 == turnsCount){
+	//	cout << "5000 5000 150" << endl;
+	//	cout << "5000 5000 300" << endl;
+	//}
+	//else {
+	//	cout << "-3897 -10 78" << endl;
+	//	cout << "90 -6776 265" << endl;
+	//}
 
 	cout << WAIT << endl;
 }
@@ -1218,7 +1324,7 @@ Coords Game::findNearestWreck() const {
 			const Coords wreckPostion = wreck->getPosition();
 
 			Reaper* myReaper = dynamic_cast<Reaper*>(entities.at(UI_MY_REAPER));
-			const int distToMyReaper = wreckPostion.distance(myReaper->getPosition());
+			const int distToMyReaper = int(wreckPostion.distance(myReaper->getPosition()));
 
 			if (distToMyReaper < minDist) {
 				res = wreckPostion;
@@ -1261,7 +1367,7 @@ Coords Game::findNearestTanker() const {
 				}
 
 				const Coords tankerPostion = tanker->getPosition();
-				const int distToMyDestroyer = tankerPostion.distance(myDestroyer->getPosition());
+				const int distToMyDestroyer = int(tankerPostion.distance(myDestroyer->getPosition()));
 
 				if (distToMyDestroyer < minDist) {
 					res = tankerPostion;
