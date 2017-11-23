@@ -16,10 +16,10 @@
 
 using namespace std;
 
-const bool OUTPUT_GAME_DATA = 0;
+const bool OUTPUT_GAME_DATA = 1;
 const bool USE_HARDCODED_INPUT = 0;
 
-#define REDIRECT_CIN_FROM_FILE
+//#define REDIRECT_CIN_FROM_FILE
 const string INPUT_FILE_NAME = "input.txt";
 
 const int INVALID_ID = -1;
@@ -357,9 +357,6 @@ public:
 	void setRadius(int radius) { this->radius = radius; }
 	void setVelocity(const Coords& velocity) { this->velocity = velocity; }
 
-	virtual void simulate() = 0;
-	virtual void checkForCollisionWith(Entity* entity) = 0;
-
 private:
 	int id;
 	int unitType;
@@ -563,9 +560,6 @@ public:
 
 	~Reaper();
 
-	void simulate() override;
-	void checkForCollisionWith(Entity* entity) override;
-
 private:
 };
 
@@ -601,18 +595,6 @@ Reaper::Reaper(
 
 Reaper::~Reaper() {
 
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Reaper::simulate() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Reaper::checkForCollisionWith(Entity* entity) {
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -700,9 +682,6 @@ public:
 
 	void setWaterCapacity(int waterCapacity) { this->waterCapacity = waterCapacity; }
 
-	void simulate() override;
-	void checkForCollisionWith(Entity* entity) override;
-
 	bool inCircleMap() const;
 
 private:
@@ -747,18 +726,7 @@ Tanker::Tanker(
 //*************************************************************************************************************
 
 Tanker::~Tanker() {
-}
 
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Tanker::simulate() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Tanker::checkForCollisionWith(Entity* entity) {
 }
 
 //*************************************************************************************************************
@@ -791,9 +759,6 @@ public:
 	);
 
 	~Wreck();
-
-	void simulate() override;
-	void checkForCollisionWith(Entity* entity) override;
 
 private:
 };
@@ -834,18 +799,6 @@ Wreck::~Wreck() {
 
 }
 
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Wreck::simulate() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Wreck::checkForCollisionWith(Entity* entity) {
-}
-
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
@@ -874,9 +827,6 @@ public:
 	}
 
 	void setTargetId(int targetId) { this->targetId = targetId; }
-
-	void simulate() override;
-	void checkForCollisionWith(Entity* entity) override;
 
 private:
 	int targetId;
@@ -917,18 +867,6 @@ Destroyer::Destroyer(
 
 Destroyer::~Destroyer() {
 
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Destroyer::simulate() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Destroyer::checkForCollisionWith(Entity* entity) {
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -1059,14 +997,21 @@ State::~State() {
 //*************************************************************************************************************
 
 void State::simulate() {
-	Coords p(7, 2);
-	Coords p1(1, 4);
-	Coords p2(5, 4);
-	Coords c = closestPointToLine(p, p1, p2);
+	//Reaper* reaperA = new Reaper();
+	//reaperA->setPosition(Coords(2.f, 4.f));
+	//reaperA->setVelocity(Coords(5.f, 4.f));
+	//reaperA->setRadius(1);
+	//
+	//Reaper* reaperB = new Reaper();
+	//reaperB->setPosition(Coords(4.f, 2.f));
+	//reaperB->setVelocity(Coords(4.f, 5.f));
+	//reaperB->setRadius(1);
+	//
+	//checkForCollision(reaperA, reaperB);
 
 	for (size_t entityAIdx = 0; entityAIdx < entities.size(); ++entityAIdx) {
 		for (size_t entityBIdx = entityAIdx + 1; entityBIdx < entities.size(); ++entityBIdx) {
-			
+			checkForCollision(entities[entityAIdx], entities[entityBIdx]);
 		}
 	}
 
@@ -1111,13 +1056,51 @@ Coords State::closestPointToLine(
 //*************************************************************************************************************
 
 void State::checkForCollision(Entity* entityA, Entity* entityB) {
-	// B will is used as center of the coordinate system
+	float radiusSum = float(entityA->getRadius() + entityB->getRadius());
+
+	// B will be used as center of the coordinate system
 	Coords newAPosition = entityA->getPosition() - entityB->getPosition();
 	Coords newAVelocity = entityA->getVelocity() - entityB->getVelocity();
 
-	Coords postionAfterVelocity = newAPosition + newAVelocity;
+	Coords positionAfterVelocity = newAPosition + newAVelocity;
 
-	Coords pointFromOriginToLine = closestPointToLine(Coords(0.f, 0.f), newAPosition, postionAfterVelocity);
+	Coords origin(0.f, 0.f);
+	Coords pointFromOriginToLine = closestPointToLine(origin, newAPosition, positionAfterVelocity);
+
+	float distFromOriginToLinePoint = origin.distance(pointFromOriginToLine);
+	float distFromAToLinePoint = newAPosition.distance(pointFromOriginToLine);
+
+	if (distFromOriginToLinePoint < radiusSum) {
+		float vX = newAVelocity.getXCoord();
+		float vY = newAVelocity.getYCoord();
+		float lenTraveledOnLinefromA = sqrt((vX * vX) + (vY * vY));
+
+		float radiusSumMinusDistToLine = radiusSum - distFromOriginToLinePoint;
+		Coord moveAlongTheLineX = radiusSumMinusDistToLine * vX / lenTraveledOnLinefromA;
+		Coord moveAlongTheLineY = radiusSumMinusDistToLine * vY / lenTraveledOnLinefromA;
+		Coords moveAlongTheLine(moveAlongTheLineX, moveAlongTheLineY);
+
+		Coords moved = pointFromOriginToLine - moveAlongTheLine;
+		float distFromAToMoved = newAPosition.distance(moved);
+
+		if (distFromAToMoved > distFromAToLinePoint) {
+			// If the point is now further away it means we are not going the right way, therefore the collision won't happen
+			int noCollision = 0;
+			++noCollision;
+		}
+		else if (distFromAToMoved > lenTraveledOnLinefromA) {
+			// The point of impact is further than what we can travel in one turn
+			int noCollision = 0;
+			++noCollision;
+		}
+		else {
+			// Time needed to reach the impact point
+			float collisionTime = distFromAToMoved / lenTraveledOnLinefromA;
+
+			int collision = 0;
+			++collision;
+		}
+	}
 }
 
 //-------------------------------------------------------------------------------------------------------------
@@ -1406,26 +1389,50 @@ void Game::simulateTurn() {
 	if (0 == turnsCount) {
 		actions[0] = Action(Coords(-1, -1), 150);
 		actions[1] = Action(Coords(-1, -1), 300);
-		actions[2] = Action(Coords(-7558, -4208), 250);
-		actions[3] = Action(Coords(-7558, -4208), 300);
-		actions[4] = Action(Coords(7423, -4441), 250);
-		actions[5] = Action(Coords(7423, -4441), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-7558, -4208), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(7423, -4441), 200);
 	}
-	else if (1 == turnsCount) {
-		actions[0] = Action(Coords(5000, 5000), 150);
-		actions[1] = Action(Coords(5000, 5000), 300);
-		actions[2] = Action(Coords(-7063, -3932), 250);
-		actions[3] = Action(Coords(-7063, -3932), 300);
-		actions[4] = Action(Coords(6937, -4150), 250);
-		actions[5] = Action(Coords(6937, -4150), 300);
+	else if (2 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-7063, -3932), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(6937, -4150), 200);
 	}
-	else {
-		actions[0] = Action(Coords(-3897, -10), 78);
-		actions[1] = Action(Coords(90, -6776), 265);
-		actions[2] = Action(Coords(-6620, -3685), 250);
-		actions[3] = Action(Coords(-6620, -3685), 300);
-		actions[4] = Action(Coords(6502, -3890), 250);
-		actions[5] = Action(Coords(6502, -3890), 300);
+	else if (3 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-6620, -3685), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(6502, -3890), 200);
+	}
+	else if (4 == turnsCount) {
+		actions[0] = Action(Coords(-1, - 1), 150);
+		actions[1] = Action(Coords(-1, - 1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-6208, - 3456), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(6098, - 3648), 200);
+	}
+	else if (5 == turnsCount) {
+		actions[0] = Action(Coords(-1, - 1), 150);
+		actions[1] = Action(Coords(-1, - 1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-5815, - 3238), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(5713, - 3417), 200);
+	}
+	else if (6 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-5433, -3026), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(5339, -3193), 200);
 	}
 
 	State state(entities, actions);
