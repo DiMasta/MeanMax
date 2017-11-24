@@ -39,6 +39,9 @@ const float TANKER_FRICTION = .4f;
 const float TURN_INVALID_TIME = FLT_MAX;
 const float TURN_START_TIME = 0.f;
 const float TURN_END_TIME = 1.f;
+const float EPSILON = 0.00001f;
+const float MIN_IMPULSE = 30.f;
+const float IMPULSE_COEFF = .5f;
 
 const int INVALID_RADIUS = 0;
 const int INVALID_WATER_QUANTITY = -1;
@@ -494,6 +497,7 @@ public:
 	
 	void applyAcceleration(const Action& action);
 	void move(float time);
+	void bounce(Vehicle* vehicle);
 	void applyFriction();
 	void roundVectors();
 
@@ -577,6 +581,52 @@ void Vehicle::move(float time) {
 	Coords timeVelocity = getVelocity() * time;
 	Coords newPosition = getPosition() + timeVelocity;
 	setPosition(newPosition);
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Vehicle::bounce(Vehicle* vehicle) {
+	float mcoeff = (mass + vehicle->getMass()) / (mass * vehicle->getMass());
+	float nx = getPosition().getXCoord() - vehicle->getPosition().getXCoord();
+	float ny = getPosition().getYCoord() - vehicle->getPosition().getYCoord();
+	float nxnysquare = nx * nx + ny * ny;
+	float dvx = getVelocity().getXCoord() - vehicle->getVelocity().getXCoord();
+	float dvy = getVelocity().getYCoord() - vehicle->getVelocity().getYCoord();
+	float product = (nx * dvx + ny * dvy) / (nxnysquare * mcoeff);
+	float fx = nx * product;
+	float fy = ny * product;
+	float m1c = 1.f / mass;
+	float m2c = 1.f / vehicle->getMass();
+
+	Coords thisVelocity = getVelocity();
+	Coords thisVelocityChange(fx * m1c, fy * m1c);
+	setVelocity(thisVelocity - thisVelocityChange);
+
+	Coords vehicleVelocity = getVelocity();
+	Coords vehicleVelocityChange(fx * m1c, fy * m1c);
+	setVelocity(vehicleVelocity + vehicleVelocityChange);
+
+	fx = fx * IMPULSE_COEFF;
+	fy = fy * IMPULSE_COEFF;
+
+	// Normalize vector at min or max impulse
+	float impulse = sqrt(fx * fx + fy * fy);
+	float coeff = 1.f;
+	if (impulse > EPSILON && impulse < MIN_IMPULSE) {
+		coeff = MIN_IMPULSE / impulse;
+	}
+
+	fx = fx * coeff;
+	fy = fy * coeff;
+
+	thisVelocity = getVelocity();
+	Coords thisVelocityChange1(fx * m1c, fy * m1c);
+	setVelocity(thisVelocity - thisVelocityChange1);
+
+	vehicleVelocity = getVelocity();
+	Coords vehicleVelocityChange1(fx * m1c, fy * m1c);
+	setVelocity(vehicleVelocity + vehicleVelocityChange1);
 }
 
 //*************************************************************************************************************
@@ -1224,7 +1274,9 @@ void State::simulateVehicles() {
 			float collisionTime = firstCollision.getTime();
 			moveVehicles(collisionTime);
 
-			// compute bounce
+			Vehicle* vehicleA = dynamic_cast<Vehicle*>(firstCollision.getEntityA());
+			Vehicle* vehicleB = dynamic_cast<Vehicle*>(firstCollision.getEntityB());
+			vehicleA->bounce(vehicleB);
 
 			time += collisionTime;
 		}
