@@ -36,9 +36,6 @@ const float INVALID_FRICTION = -1.f;
 const float REAPER_FRICTION = .2f;
 const float DESTROYER_FRICTION = .3f;
 const float TANKER_FRICTION = .4f;
-const float TURN_INVALID_TIME = FLT_MAX;
-const float TURN_START_TIME = 0.f;
-const float TURN_END_TIME = 1.f;
 
 const int INVALID_RADIUS = 0;
 const int INVALID_WATER_QUANTITY = -1;
@@ -105,17 +102,12 @@ public:
 	Coords& operator+=(const Coords& other);
 	Coords operator-(const Coords& other);
 	Coords& operator-=(const Coords& other);
-	Coords operator*(const Coords& other);
-	Coords& operator*=(const Coords& other);
-	Coords operator*(Coord numerical);
-	Coords& operator*=(Coord numerical);
 
 	bool isValid() const;
 	void debug() const;
 	void print() const;
 
 	Coord distance(const Coords& coords) const;
-	void roundCoords();
 
 private:
 	Coord xCoord;
@@ -209,40 +201,6 @@ Coords& Coords::operator-=(const Coords& other) {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Coords Coords::operator*(const Coords& other) {
-	return Coords(xCoord * other.xCoord, yCoord * other.yCoord);
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Coords& Coords::operator*=(const Coords& other) {
-	xCoord *= other.xCoord;
-	yCoord *= other.yCoord;
-
-	return *this;
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Coords Coords::operator*(Coord numerical) {
-	return Coords(xCoord * numerical, yCoord * numerical);
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Coords & Coords::operator*=(Coord numerical) {
-	xCoord *= numerical;
-	yCoord *= numerical;
-
-	return *this;
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
 bool Coords::isValid() const {
 	return INVALID_COORD != xCoord && INVALID_COORD != yCoord;
 }
@@ -270,14 +228,6 @@ Coord Coords::distance(const Coords& coords) const {
 
 	Coord hip = (Coord)sqrt((kat0 * kat0) + (kat1 * kat1));
 	return hip;
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Coords::roundCoords() {
-	xCoord = round(xCoord);
-	yCoord = round(yCoord);
 }
 
 //*************************************************************************************************************
@@ -492,10 +442,7 @@ public:
 	void setMass(float mass) { this->mass = mass; }
 	void setFriction(float friction) { this->friction = friction; }
 	
-	void applyAcceleration(const Action& action);
-	void move(float time);
-	void applyFriction();
-	void roundVectors();
+	void move(const Action& action);
 
 private:
 	int playerId;
@@ -539,7 +486,7 @@ Vehicle::Vehicle(
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-void Vehicle::applyAcceleration(const Action& action) {
+void Vehicle::move(const Action& action) {
 	Coords accDir = action.getAccelerationDir();
 	Coord xAccDir = accDir.getXCoord();
 	Coord yAccDir = accDir.getYCoord();
@@ -567,33 +514,21 @@ void Vehicle::applyAcceleration(const Action& action) {
 	float vXFinal = vXInitial + xAcc;
 	float vYFinal = vYInitial + yAcc;
 
-	setVelocity(Coords(vXFinal, vYFinal));
-}
+	float vXFriction = vXFinal * (1.f - friction);
+	float vYFriction = vYFinal * (1.f - friction);
 
-//*************************************************************************************************************
-//*************************************************************************************************************
+	float roundVXFriction = round(vXFriction);
+	float roundVYFriction = round(vYFriction);
 
-void Vehicle::move(float time) {
-	Coords timeVelocity = getVelocity() * time;
-	Coords newPosition = getPosition() + timeVelocity;
-	setPosition(newPosition);
-}
+	setVelocity(Coords(roundVXFriction, roundVYFriction));
 
-//*************************************************************************************************************
-//*************************************************************************************************************
+	float xFinal = x + vXFinal;
+	float yFinal = y + vYFinal;
 
-void Vehicle::applyFriction() {
-	Coords friction(1.f - friction, 1.f - friction);
-	Coords newVelocity = getVelocity() * friction;
-	setVelocity(newVelocity);
-}
+	float roundXFinal = round(xFinal);
+	float roundYFinal = round(yFinal);
 
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Vehicle::roundVectors() {
-	getPosition().roundCoords();
-	getVelocity().roundCoords();
+	setPosition(Coords(roundXFinal, roundYFinal));
 }
 
 //*************************************************************************************************************
@@ -1011,106 +946,6 @@ void Team::init() {
 //-------------------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------
 
-class Collision {
-public:
-	Collision();
-
-	Collision(
-		Entity* entityA,
-		Entity* entityB,
-		float time
-	);
-
-	~Collision();
-
-	Entity* getEntityA() const {
-		return entityA;
-	}
-
-	Entity* getEntityB() const {
-		return entityB;
-	}
-
-	float getTime() const {
-		return time;
-	}
-
-	void setEntityA(Entity* entityA) { this->entityA = entityA; }
-	void setEntityB(Entity* entityB) { this->entityB = entityB; }
-	void setTime(float time) { this->time = time; }
-
-	bool isValid() const;
-	void reset();
-	bool compare(const Collision& collision);
-
-private:
-	Entity* entityA;
-	Entity* entityB;
-	float time;
-};
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Collision::Collision() :
-	entityA(nullptr),
-	entityB(nullptr),
-	time(TURN_INVALID_TIME)
-{
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Collision::Collision(
-	Entity* entityA,
-	Entity* entityB,
-	float time
-) :
-	entityA(entityA),
-	entityB(entityB),
-	time(time)
-{
-
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Collision::~Collision() {
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-bool Collision::isValid() const {
-	return entityA && entityB && (time != TURN_INVALID_TIME);
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void Collision::reset() {
-	entityA = nullptr;
-	entityB = nullptr;
-	time = TURN_INVALID_TIME;
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-bool Collision::compare(const Collision& collision) {
-	bool sameAEntities = entityA == collision.entityA;
-	bool sameBEntities = entityB == collision.entityB;
-
-	return sameAEntities && sameBEntities;
-}
-
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------
-
 class State {
 public:
 	State();
@@ -1123,18 +958,9 @@ public:
 		const Coords& point,
 		const Coords& linePoint1,
 		const Coords& linePoint2
-	) const;
+	);
 
-	void simulateVehicles();
-	void moveVehicles(float time);
-	Collision checkForCollision(Entity* entityA, Entity* entityB) const;
-	void applyVehiclesAccelerations();
-	void simulationEnd();
-	void getFirstCollision(
-		Collision& firstCollision,
-		Collision& previousCollision,
-		float time
-	) const;
+	void checkForCollision(Entity* entityA, Entity* entityB);
 
 private:
 	Entities entities;
@@ -1171,9 +997,30 @@ State::~State() {
 //*************************************************************************************************************
 
 void State::simulate() {
-	applyVehiclesAccelerations();
-	simulateVehicles();
-	simulationEnd();
+	Reaper* reaperA = new Reaper();
+	reaperA->setPosition(Coords(2.f, 4.f));
+	reaperA->setVelocity(Coords(2.f, 0.f));
+	reaperA->setRadius(1);
+	
+	Reaper* reaperB = new Reaper();
+	reaperB->setPosition(Coords(4.f, 2.f));
+	reaperB->setVelocity(Coords(0.f, 2.f));
+	reaperB->setRadius(1);
+	
+	checkForCollision(reaperA, reaperB);
+
+	for (size_t entityAIdx = 0; entityAIdx < entities.size(); ++entityAIdx) {
+		for (size_t entityBIdx = entityAIdx + 1; entityBIdx < entities.size(); ++entityBIdx) {
+			checkForCollision(entities[entityAIdx], entities[entityBIdx]);
+		}
+	}
+
+	for (int vehicleIdx = 0; vehicleIdx < VEHICLES_COUNT; ++vehicleIdx) {
+		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[vehicleIdx]);
+		vehicle->move(actions[vehicleIdx]);
+	}
+
+	// Move Tankers
 }
 
 //*************************************************************************************************************
@@ -1183,7 +1030,7 @@ Coords State::closestPointToLine(
 	const Coords& point,
 	const Coords& linePoint1,
 	const Coords& linePoint2
-) const {
+) {
 	float da = linePoint2.getYCoord() - linePoint1.getYCoord();
 	float db = linePoint1.getXCoord() - linePoint2.getXCoord();
 	float c1 = da * linePoint1.getXCoord() + db * linePoint1.getYCoord();
@@ -1208,48 +1055,7 @@ Coords State::closestPointToLine(
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-void State::simulateVehicles() {
-	Collision firstCollision;
-	Collision previousCollision;
-
-	float time = TURN_START_TIME;
-	while (time < TURN_END_TIME) {
-		getFirstCollision(firstCollision, previousCollision, time);
-
-		if (!firstCollision.isValid()) {
-			moveVehicles(TURN_END_TIME - time);
-			time = TURN_END_TIME;
-		}
-		else {
-			float collisionTime = firstCollision.getTime();
-			moveVehicles(collisionTime);
-
-			// compute bounce
-
-			time += collisionTime;
-		}
-
-		previousCollision = firstCollision;
-		firstCollision.reset();
-	}
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void State::moveVehicles(float time) {
-	for (size_t vehicleIdx = 0; vehicleIdx < VEHICLES_COUNT; ++vehicleIdx) {
-		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[vehicleIdx]);
-		vehicle->move(time);
-	}
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-Collision State::checkForCollision(Entity* entityA, Entity* entityB) const {
-	Collision collision;
-
+void State::checkForCollision(Entity* entityA, Entity* entityB) {
 	float radiusSum = float(entityA->getRadius() + entityB->getRadius());
 
 	// B will be used as center of the coordinate system
@@ -1291,68 +1097,8 @@ Collision State::checkForCollision(Entity* entityA, Entity* entityB) const {
 			// Time needed to reach the impact point
 			float collisionTime = distFromAToMoved / lenTraveledOnLinefromA;
 
-			collision.setEntityA(entityA);
-			collision.setEntityB(entityB);
-			collision.setTime(collisionTime);
-		}
-	}
-
-	return collision;
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void State::applyVehiclesAccelerations() {
-	for (int entityIdx = 0; entityIdx < VEHICLES_COUNT; ++entityIdx) {
-		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[entityIdx]);
-
-		if (vehicle) {
-			Action* action = &actions[entityIdx];
-			vehicle->applyAcceleration(*action);
-		}
-	}
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void State::simulationEnd() {
-	for (int entityIdx = 0; entityIdx < VEHICLES_COUNT; ++entityIdx) {
-		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[entityIdx]);
-
-		if (vehicle) {
-			vehicle->roundVectors();
-		}
-	}
-}
-
-//*************************************************************************************************************
-//*************************************************************************************************************
-
-void State::getFirstCollision(
-	Collision& firstCollision,
-	Collision& previousCollision,
-	float time
-) const {
-	for (size_t entityAIdx = 0; entityAIdx < entities.size(); ++entityAIdx) {
-		for (size_t entityBIdx = entityAIdx + 1; entityBIdx < entities.size(); ++entityBIdx) {
-			Collision collision = checkForCollision(entities.at(entityAIdx), entities.at(entityBIdx));
-
-			if (collision.isValid() &&
-				TURN_START_TIME == collision.getTime() &&
-				collision.compare(previousCollision)
-				) {
-				continue;
-			}
-
-			if (collision.isValid()) {
-				bool collisionInTurn = (collision.getTime() + time) < TURN_END_TIME;
-				bool collisionEarlierThanFirst = collision.getTime() < firstCollision.getTime();
-				if (collisionInTurn && collisionEarlierThanFirst) {
-					firstCollision = collision;
-				}
-			}
+			int collision = 0;
+			++collision;
 		}
 	}
 }
