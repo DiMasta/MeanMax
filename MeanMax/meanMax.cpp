@@ -1683,6 +1683,7 @@ public:
 
 	Wreck* findNearestWreck() const;
 	Coords findNearestTanker() const;
+	Tanker* findFullestTanker() const;
 	void gameDataClear();
 
 	void simulateTurn();
@@ -1833,7 +1834,6 @@ void Game::makeTurn() {
 		nearestWreckPos = nearestWreck->getPosition();
 		nearestWreckPos -= myReaper->getVelocity();
 	}
-	Coords nearestTanker = findNearestTanker();
 
 	int throtlle = 300;
 	//Coords myReaperPos = myReaper->getPosition();
@@ -1847,7 +1847,16 @@ void Game::makeTurn() {
 	nearestWreckPos.print();
 	cout << " " << throtlle << endl;
 
-	nearestTanker.print();
+	//Coords nearestTanker = findNearestTanker();
+	Tanker* tanker = findFullestTanker();
+
+	//nearestTanker.print();
+	if (tanker) {
+		tanker->getPosition().print();
+	}
+	else {
+		cout << "0 0";
+	}
 	cout << " " << MAX_THROTTLE << endl;
 
 	Reaper* enemy1Reaper = dynamic_cast<Reaper*>(entities[UI_ENEMY_1_REAPER]);
@@ -1885,7 +1894,7 @@ void Game::debug() const {
 //*************************************************************************************************************
 
 Wreck* Game::findNearestWreck() const {
-	Wreck* res = NULL;
+	Wreck* res = nullptr;
 	int minDist = INT_MAX;
 
 	for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
@@ -1958,6 +1967,54 @@ Coords Game::findNearestTanker() const {
 					res = tankerPostion;
 					minDist = distToMyDestroyer;
 					myDestroyer->setTargetId(tanker->getId());
+				}
+			}
+		}
+	}
+
+	return res;
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Tanker* Game::findFullestTanker() const {
+	Tanker* res = nullptr;
+
+	Destroyer* myDestroyer = dynamic_cast<Destroyer*>(entities.at(UI_MY_DESTROYER));
+	//int targetId = myDestroyer->getTargetId();
+	//
+	//if (INVALID_ID != targetId) {
+	//	Tanker* target = dynamic_cast<Tanker*>(entities.at(targetId));
+	//
+	//	if (target) {
+	//		res = target;
+	//	}
+	//}
+
+	if (!res) {
+		int maxWater = INT_MIN;
+
+		for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
+			Entity* entity = it->second;
+
+			if (!entity) {
+				continue;
+			}
+
+			if (UT_TANKER == entity->getUnitType()) {
+				Tanker* tanker = dynamic_cast<Tanker*>(entity);
+
+				if (tanker->empthy() || !tanker->inCircleMap()) {
+					continue;
+				}
+
+				const int tankerWater = tanker->getWaterQuantity();
+
+				if (tankerWater > maxWater) {
+					res = tanker;
+					maxWater = tankerWater;
+					//myDestroyer->setTargetId(tanker->getId());
 				}
 			}
 		}
