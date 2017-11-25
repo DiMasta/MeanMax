@@ -13,13 +13,14 @@
 #include <fstream>
 #include <climits>
 #include <cstring>
+#include <cfloat>
 
 using namespace std;
 
 const bool OUTPUT_GAME_DATA = 0;
 const bool USE_HARDCODED_INPUT = 0;
 
-#define REDIRECT_CIN_FROM_FILE
+//#define REDIRECT_CIN_FROM_FILE
 const string INPUT_FILE_NAME = "input.txt";
 
 const int INVALID_ID = -1;
@@ -633,8 +634,8 @@ void Vehicle::bounce(Vehicle* vehicle) {
 //*************************************************************************************************************
 
 void Vehicle::applyFriction() {
-	Coords friction(1.f - friction, 1.f - friction);
-	Coords newVelocity = getVelocity() * friction;
+	Coords frictionVec(1.f - friction, 1.f - friction);
+	Coords newVelocity = getVelocity() * frictionVec;
 	setVelocity(newVelocity);
 }
 
@@ -642,8 +643,13 @@ void Vehicle::applyFriction() {
 //*************************************************************************************************************
 
 void Vehicle::roundVectors() {
-	getPosition().roundCoords();
-	getVelocity().roundCoords();
+	Coords position = getPosition();
+	position.roundCoords();
+	setPosition(position);
+
+	Coords velocity = getVelocity();
+	velocity.roundCoords();
+	setVelocity(velocity);
 }
 
 //*************************************************************************************************************
@@ -1374,6 +1380,7 @@ void State::simulationEnd() {
 		Vehicle* vehicle = dynamic_cast<Vehicle*>(entities[entityIdx]);
 
 		if (vehicle) {
+			vehicle->applyFriction();
 			vehicle->roundVectors();
 		}
 	}
@@ -1392,10 +1399,10 @@ void State::getFirstCollision(
 			Collision collision = checkForCollision(entities.at(entityAIdx), entities.at(entityBIdx));
 
 			if (collision.isValid() &&
-				TURN_START_TIME == collision.getTime() &&
+				//TURN_START_TIME == collision.getTime() &&
 				collision.compare(previousCollision)
 				) {
-				continue;
+				collision = Collision();
 			}
 
 			if (collision.isValid()) {
@@ -1431,7 +1438,7 @@ public:
 
 	void debug() const;
 
-	Coords findNearestWreck() const;
+	Wreck* findNearestWreck() const;
 	Coords findNearestTanker() const;
 	void gameDataClear();
 
@@ -1546,26 +1553,31 @@ void Game::turnBegin() {
 //*************************************************************************************************************
 
 void Game::makeTurn() {
-	simulateTurn(); // Test simulation
+	//simulateTurn(); // Test simulation
 
-	//if (0 == turnsCount) {
-		Coords nearestWreck = findNearestWreck();
-		Coords nearestTanker = findNearestTanker();
+	Wreck* nearestWreck = findNearestWreck();
+	Entity* myReaper = entities[0];
+	Coords nearestWreckPos(-1, -1);
+	if (nearestWreck) {
+		nearestWreckPos = nearestWreck->getPosition();
+		nearestWreckPos -= myReaper->getVelocity();
+	}
+	Coords nearestTanker = findNearestTanker();
 
-		nearestWreck.print();
-		cout << " " << MAX_THROTTLE / 2 << endl;
+	int throtlle = 300;
+	//Coords myReaperPos = myReaper->getPosition();
+	//if (myReaperPos.distance(nearestWreckPos) < 2000.f) {
+	//	throtlle = 150;
+	//}
+	//else if (nearestWreck && (myReaperPos.distance(nearestWreckPos) < nearestWreck->getRadius())) {
+	//	throtlle = 0;
+	//}
 
-		nearestTanker.print();
-		cout << " " << MAX_THROTTLE << endl;
-	//}
-	//else if (1 == turnsCount){
-	//	cout << "5000 5000 150" << endl;
-	//	cout << "5000 5000 300" << endl;
-	//}
-	//else {
-	//	cout << "-3897 -10 78" << endl;
-	//	cout << "90 -6776 265" << endl;
-	//}
+	nearestWreckPos.print();
+	cout << " " << throtlle << endl;
+
+	nearestTanker.print();
+	cout << " " << MAX_THROTTLE << endl;
 
 	cout << WAIT << endl;
 }
@@ -1596,8 +1608,8 @@ void Game::debug() const {
 //*************************************************************************************************************
 //*************************************************************************************************************
 
-Coords Game::findNearestWreck() const {
-	Coords res;
+Wreck* Game::findNearestWreck() const {
+	Wreck* res = NULL;
 	int minDist = INT_MAX;
 
 	for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
@@ -1616,7 +1628,7 @@ Coords Game::findNearestWreck() const {
 			const int distToMyReaper = int(wreckPostion.distance(myReaper->getPosition()));
 
 			if (distToMyReaper < minDist) {
-				res = wreckPostion;
+				res = wreck;
 				minDist = distToMyReaper;
 			}
 		}
@@ -1700,7 +1712,7 @@ void Game::simulateTurn() {
 		actions[4] = Action(Coords(0, 0), 200);
 		actions[5] = Action(Coords(7423, -4441), 200);
 	}
-	else if (2 == turnsCount) {
+	else if (1 == turnsCount) {
 		actions[0] = Action(Coords(-1, -1), 150);
 		actions[1] = Action(Coords(-1, -1), 300);
 		actions[2] = Action(Coords(0, 0), 200);
@@ -1708,7 +1720,7 @@ void Game::simulateTurn() {
 		actions[4] = Action(Coords(0, 0), 200);
 		actions[5] = Action(Coords(6937, -4150), 200);
 	}
-	else if (3 == turnsCount) {
+	else if (2 == turnsCount) {
 		actions[0] = Action(Coords(-1, -1), 150);
 		actions[1] = Action(Coords(-1, -1), 300);
 		actions[2] = Action(Coords(0, 0), 200);
@@ -1716,23 +1728,23 @@ void Game::simulateTurn() {
 		actions[4] = Action(Coords(0, 0), 200);
 		actions[5] = Action(Coords(6502, -3890), 200);
 	}
-	else if (4 == turnsCount) {
-		actions[0] = Action(Coords(-1, - 1), 150);
-		actions[1] = Action(Coords(-1, - 1), 300);
+	else if (3 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
 		actions[2] = Action(Coords(0, 0), 200);
-		actions[3] = Action(Coords(-6208, - 3456), 200);
+		actions[3] = Action(Coords(-6208, -3456), 200);
 		actions[4] = Action(Coords(0, 0), 200);
-		actions[5] = Action(Coords(6098, - 3648), 200);
+		actions[5] = Action(Coords(6098, -3648), 200);
+	}
+	else if (4 == turnsCount) {
+		actions[0] = Action(Coords(-1, -1), 150);
+		actions[1] = Action(Coords(-1, -1), 300);
+		actions[2] = Action(Coords(0, 0), 200);
+		actions[3] = Action(Coords(-5815, -3238), 200);
+		actions[4] = Action(Coords(0, 0), 200);
+		actions[5] = Action(Coords(5713, -3417), 200);
 	}
 	else if (5 == turnsCount) {
-		actions[0] = Action(Coords(-1, - 1), 150);
-		actions[1] = Action(Coords(-1, - 1), 300);
-		actions[2] = Action(Coords(0, 0), 200);
-		actions[3] = Action(Coords(-5815, - 3238), 200);
-		actions[4] = Action(Coords(0, 0), 200);
-		actions[5] = Action(Coords(5713, - 3417), 200);
-	}
-	else if (6 == turnsCount) {
 		actions[0] = Action(Coords(-1, -1), 150);
 		actions[1] = Action(Coords(-1, -1), 300);
 		actions[2] = Action(Coords(0, 0), 200);
