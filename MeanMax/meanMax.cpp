@@ -57,10 +57,13 @@ enum UnitId {
 	UI_INVALID = -1,
 	UI_MY_REAPER = 0,
 	UI_MY_DESTROYER,
+	UI_MY_DOOF,
 	UI_ENEMY_1_REAPER,
 	UI_ENEMY_1_DESTROYER,
+	UI_ENEMY_1_DOOF,
 	UI_ENEMY_2_REAPER,
 	UI_ENEMY_2_DESTROYER,
+	UI_ENEMY_2_DOOF,
 };
 
 enum PlayerId {
@@ -74,6 +77,7 @@ enum UnitType {
 	UT_INVALID = -1,
 	UT_REAPER = 0,
 	UT_DESTROYER = 1,
+	UT_DOOF = 2,
 	UT_TANKER = 3,
 	UT_WRECK = 4,
 };
@@ -676,12 +680,20 @@ public:
 		int playerId,
 		const Coords& velocity,
 		float mass,
-		float friction
+		float friction,
+		int score
 	);
+
+	int getScore() const {
+		return score;
+	}
+
+	void setScore(int score) { this->score = score; }
 
 	~Reaper();
 
 private:
+	int score;
 };
 
 //*************************************************************************************************************
@@ -704,9 +716,11 @@ Reaper::Reaper(
 	int playerId,
 	const Coords& velocity,
 	float mass,
-	float friction
+	float friction,
+	int score
 ) :
-	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction)
+	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction),
+	score(score)
 {
 
 }
@@ -987,6 +1001,62 @@ Destroyer::Destroyer(
 //*************************************************************************************************************
 
 Destroyer::~Destroyer() {
+
+}
+
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------
+
+class Doof : public Vehicle {
+public:
+	Doof();
+
+	Doof(
+		int id,
+		int unitType,
+		const Coords& position,
+		int radius,
+		int playerId,
+		const Coords& velocity,
+		float mass,
+		float friction
+	);
+
+	~Doof();
+private:
+
+};
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Doof::Doof() : Vehicle() {
+
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Doof::Doof(
+	int id,
+	int unitType,
+	const Coords& position,
+	int radius,
+	int playerId,
+	const Coords& velocity,
+	float mass,
+	float friction
+) :
+	Vehicle(id, unitType, position, radius, playerId, velocity, mass, friction)
+{
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Doof::~Doof() {
 
 }
 
@@ -1522,11 +1592,30 @@ void Game::getTurnInput() {
 			cerr << extra << " " << extra2 << endl;
 		}
 
+		int score = 0;
+		switch (player) {
+			case (PI_MY_PALYER): {
+				score = myScore;
+				break;
+			}
+			case (PI_ENEMY_PLAYER_1): {
+				score = enemyScore1;
+				break;
+			}
+			case (PI_ENEMY_PLAYER_2): {
+				score = enemyScore2;
+				break;
+			}
+			default: {
+				break;
+			}
+		}
+
 		Coords position = Coords(Coord(x), Coord(y));
 		Coords velocity = Coords(Coord(vx), Coord(vy));
 
 		if (UT_REAPER == unitType) {
-			entity = new Reaper(unitId, unitType, position, radius, player, velocity, mass, REAPER_FRICTION);
+			entity = new Reaper(unitId, unitType, position, radius, player, velocity, mass, REAPER_FRICTION, score);
 		}
 		else if (UT_DESTROYER == unitType) {
 			entity = new Destroyer(unitId, unitType, position, radius, player, velocity, mass, DESTROYER_FRICTION, INVALID_ID);
@@ -1536,6 +1625,9 @@ void Game::getTurnInput() {
 		}
 		else if (UT_WRECK == unitType) {
 			entity = new Wreck(unitId, unitType, position, radius, extra, Coords(0.f, 0.f));
+		}
+		else if (UT_DOOF == unitType) {
+			entity = new Doof(unitId, unitType, position, radius, player, velocity, mass, DESTROYER_FRICTION);
 		}
 
 		entities[unitId] = entity;
@@ -1579,7 +1671,12 @@ void Game::makeTurn() {
 	nearestTanker.print();
 	cout << " " << MAX_THROTTLE << endl;
 
-	cout << WAIT << endl;
+	Reaper* enemy1Reaper = dynamic_cast<Reaper*>(entities[UI_ENEMY_1_REAPER]);
+	Reaper* enemy2Reaper = dynamic_cast<Reaper*>(entities[UI_ENEMY_2_REAPER]);
+	Coords doofTarget = enemy1Reaper->getScore() > enemy2Reaper->getScore() ? enemy1Reaper->getPosition() : enemy2Reaper->getPosition();
+
+	doofTarget.print();
+	cout << " 300" << endl;
 }
 
 //*************************************************************************************************************
