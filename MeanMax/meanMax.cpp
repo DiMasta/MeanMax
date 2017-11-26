@@ -1684,7 +1684,9 @@ public:
 	Wreck* findNearestWreck() const;
 	Coords findNearestTanker() const;
 	Tanker* findFullestTanker() const;
+	Wreck* findFullestWreck() const;
 	void gameDataClear();
+	void makeReaperMove() const;
 
 	void simulateTurn();
 
@@ -1827,30 +1829,10 @@ void Game::turnBegin() {
 void Game::makeTurn() {
 	//simulateTurn(); // Test simulation
 
-	Wreck* nearestWreck = findNearestWreck();
-	Entity* myReaper = entities[0];
-	Coords nearestWreckPos(-1, -1);
-	if (nearestWreck) {
-		nearestWreckPos = nearestWreck->getPosition();
-		nearestWreckPos -= myReaper->getVelocity();
-	}
+	makeReaperMove();
 
-	int throtlle = 300;
-	//Coords myReaperPos = myReaper->getPosition();
-	//if (myReaperPos.distance(nearestWreckPos) < 2000.f) {
-	//	throtlle = 150;
-	//}
-	//else if (nearestWreck && (myReaperPos.distance(nearestWreckPos) < nearestWreck->getRadius())) {
-	//	throtlle = 0;
-	//}
-
-	nearestWreckPos.print();
-	cout << " " << throtlle << endl;
-
-	//Coords nearestTanker = findNearestTanker();
 	Tanker* tanker = findFullestTanker();
 
-	//nearestTanker.print();
 	if (tanker) {
 		tanker->getPosition().print();
 	}
@@ -1981,41 +1963,61 @@ Coords Game::findNearestTanker() const {
 Tanker* Game::findFullestTanker() const {
 	Tanker* res = nullptr;
 
-	Destroyer* myDestroyer = dynamic_cast<Destroyer*>(entities.at(UI_MY_DESTROYER));
-	//int targetId = myDestroyer->getTargetId();
-	//
-	//if (INVALID_ID != targetId) {
-	//	Tanker* target = dynamic_cast<Tanker*>(entities.at(targetId));
-	//
-	//	if (target) {
-	//		res = target;
-	//	}
-	//}
+	int maxWater = INT_MIN;
 
-	if (!res) {
-		int maxWater = INT_MIN;
+	for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
+		Entity* entity = it->second;
 
-		for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
-			Entity* entity = it->second;
+		if (!entity) {
+			continue;
+		}
 
-			if (!entity) {
+		if (UT_TANKER == entity->getUnitType()) {
+			Tanker* tanker = dynamic_cast<Tanker*>(entity);
+
+			if (tanker->empthy() || !tanker->inCircleMap()) {
 				continue;
 			}
 
-			if (UT_TANKER == entity->getUnitType()) {
-				Tanker* tanker = dynamic_cast<Tanker*>(entity);
+			const int tankerWater = tanker->getWaterQuantity();
 
-				if (tanker->empthy() || !tanker->inCircleMap()) {
-					continue;
-				}
+			if (tankerWater > maxWater) {
+				res = tanker;
+				maxWater = tankerWater;
+			}
+		}
+	}
 
-				const int tankerWater = tanker->getWaterQuantity();
+	return res;
+}
 
-				if (tankerWater > maxWater) {
-					res = tanker;
-					maxWater = tankerWater;
-					//myDestroyer->setTargetId(tanker->getId());
-				}
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+Wreck* Game::findFullestWreck() const {
+	Wreck* res = nullptr;
+
+	int maxWater = INT_MIN;
+
+	for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
+		Entity* entity = it->second;
+
+		if (!entity) {
+			continue;
+		}
+
+		if (UT_WRECK == entity->getUnitType()) {
+			Wreck* wreck = dynamic_cast<Wreck*>(entity);
+
+			if (wreck->empthy()) {
+				continue;
+			}
+
+			const int wreckWater = wreck->getWaterQuantity();
+
+			if (wreckWater > maxWater) {
+				res = wreck;
+				maxWater = wreckWater;
 			}
 		}
 	}
@@ -2037,6 +2039,47 @@ void Game::gameDataClear() {
 	}
 
 	entities.clear();
+}
+
+//*************************************************************************************************************
+//*************************************************************************************************************
+
+void Game::makeReaperMove() const {	
+	Entity* myReaper = entities.at(UI_MY_REAPER);
+
+	//bool reaperInWreck = false;
+	//for (Entities::const_iterator it = entities.begin(); it != entities.end(); ++it) {
+	//	Entity* entity = it->second;
+	//
+	//	if (UT_WRECK == entity->getUnitType()) {
+	//		Coords wreckPos = entity->getPosition();
+	//		float wreckRadius = float(entity->getRadius());
+	//		float distFromWreck = wreckPos.distance(myReaper->getPosition());
+	//
+	//		if (distFromWreck < wreckRadius) {
+	//			reaperInWreck = true;
+	//			break;
+	//		}
+	//	}
+	//}
+	//
+	//if (reaperInWreck) {
+	//	cout << WAIT << endl;
+	//}
+	//else {
+	//	Wreck* nearestWreck = findFullestWreck();
+		Wreck* nearestWreck = findNearestWreck();
+		Coords nearestWreckPos(-1, -1);
+		if (nearestWreck) {
+			nearestWreckPos = nearestWreck->getPosition();
+			nearestWreckPos -= myReaper->getVelocity();
+		}
+
+		int throtlle = 300;
+
+		nearestWreckPos.print();
+		cout << " " << throtlle << endl;
+	//}
 }
 
 //*************************************************************************************************************
